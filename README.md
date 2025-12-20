@@ -74,7 +74,7 @@ user32.MessageBoxA(0, "Hello", "Title", 0);
 # Async operations
 async func fetchData(url) {
     # Async operation
-    return await http.get(url); # http.get isnt a real operation just an example your supposed to implement this yourself
+    return await http.get(url); # http.get isnt real, just an example your supposed to implement this yourself
 }
 
 # List comprehensions
