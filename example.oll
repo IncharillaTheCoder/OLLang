@@ -1,0 +1,480 @@
+# OLLang Examples Collection
+
+println("OLLang Examples\n")
+
+# Example 1: Basic Math Operations
+println("Example 1: Basic Math")
+x = 10
+y = 3
+println("x = " + x + ", y = " + y)
+println("x + y = " + (x + y))
+println("x - y = " + (x - y))
+println("x * y = " + (x * y))
+println("x / y = " + (x / y))
+println("x % y = " + (x % y))
+println("x ** y = " + (x ** y))
+println()
+
+# Example 2: String Manipulation
+println("Example 2: String Manipulation")
+text = "  Hello, World!  "
+println("Original: '" + text + "'")
+println("Trimmed: '" + trim(text) + "'")
+println("Upper: " + upper(trim(text)))
+println("Lower: " + lower(trim(text)))
+words = split(trim(text), ", ")
+println("Split: " + words)
+replaced = replace("Hello World", "World", "OLLang")
+println("Replace: " + replaced)
+println()
+
+# Example 3: Arrays
+println("Example 3: Arrays")
+numbers = [1, 2, 3, 4, 5]
+println("Array: " + numbers)
+println("Length: " + len(numbers))
+println("First element: " + numbers[0])
+println("Last element: " + numbers[4])
+push(numbers, 6)
+println("After push(6): " + numbers)
+last = pop(numbers)
+println("Popped: " + last)
+println("After pop: " + numbers)
+sub = slice(numbers, 1, 4)
+println("slice(1, 4): " + sub)
+println()
+
+# Example 4: Dictionaries
+println("Example 4: Dictionaries")
+person = {
+    "name": "Alice",
+    "age": "30",
+    "city": "New York"
+}
+println("Person: " + person)
+println("Name: " + person["name"])
+println("Age: " + person.age)
+person["age"] = "31"
+println("Updated age: " + person.age)
+println()
+
+# Example 5: Control Flow
+println("Example 5: Control Flow")
+for i in range(1, 6) {
+    if i % 2 == 0 {
+        println(i + " is even")
+    } else {
+        println(i + " is odd")
+    }
+}
+println()
+
+# Example 6: While Loop
+println("Example 6: While Loop")
+count = 0
+while count < 5 {
+    println("Count: " + count)
+    count = count + 1
+}
+println()
+
+# Example 7: Functions
+println("Example 7: Functions")
+func greet(name) {
+    return "Hello, " + name + "!"
+}
+println(greet("Alice"))
+println(greet("Bob"))
+
+func add(a, b) {
+    return a + b
+}
+println("add(5, 3) = " + add(5, 3))
+println()
+
+# Example 8: Factorial (Recursion)
+println("Example 8: Factorial")
+func factorial(n) {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+println("factorial(5) = " + factorial(5))
+println("factorial(10) = " + factorial(10))
+println()
+
+# Example 9: FizzBuzz
+println("Example 9: FizzBuzz")
+for i in range(1, 21) {
+    if i % 15 == 0 {
+        println("FizzBuzz")
+    } else if i % 3 == 0 {
+        println("Fizz")
+    } else if i % 5 == 0 {
+        println("Buzz")
+    } else {
+        println(i)
+    }
+}
+println()
+
+# Example 10: List Comprehension
+println("Example 10: List Comprehension")
+squares = [x * x for x in range(1, 11)]
+println("Squares: " + squares)
+evens = [x for x in range(1, 21) if x % 2 == 0]
+println("Evens: " + evens)
+doubled_evens = [x * 2 for x in range(1, 11) if x % 2 == 0]
+println("Doubled evens: " + doubled_evens)
+println()
+
+# Example 11: Closures
+println("Example 11: Closures")
+func makeCounter() {
+    count = 0
+    func increment() {
+        count = count + 1
+        return count
+    }
+    return increment
+}
+counter1 = makeCounter()
+counter2 = makeCounter()
+println("counter1: " + counter1())
+println("counter1: " + counter1())
+println("counter1: " + counter1())
+println("counter2: " + counter2())
+println("counter2: " + counter2())
+println()
+
+# Example 12: Math Functions
+println("Example 12: Math Functions")
+println("abs(-10) = " + abs(-10))
+println("sqrt(16) = " + sqrt(16))
+println("pow(2, 8) = " + pow(2, 8))
+println("max(5, 10) = " + max(5, 10))
+println("min(5, 10) = " + min(5, 10))
+println("floor(3.7) = " + floor(3.7))
+println("ceil(3.2) = " + ceil(3.2))
+println("round(3.5) = " + round(3.5))
+println("PI = " + PI)
+println("E = " + E)
+println()
+
+# Example 13: Trigonometry
+println("Example 13: Trigonometry")
+angle = PI / 4
+println("angle = PI/4")
+println("sin(angle) = " + sin(angle))
+println("cos(angle) = " + cos(angle))
+println("tan(angle) = " + tan(angle))
+println()
+
+# Example 14: Random Numbers
+println("Example 14: Random Numbers")
+println("Random float: " + random())
+println("Random float: " + random())
+println("Random int (1-6): " + random(1, 6))
+println("Random int (1-6): " + random(1, 6))
+println("Random int (1-100): " + random(1, 100))
+println()
+
+# Example 15: String Iteration
+println("Example 15: String Iteration")
+word = "Hello"
+for char in word {
+    println("Char: " + char)
+}
+println()
+
+# Example 16: Nested Arrays
+println("Example 16: Nested Arrays")
+matrix = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+println("Matrix: " + matrix)
+println("First row: " + matrix[0])
+println("Element [1][1]: " + matrix[1][1])
+println()
+
+# Example 17: Type Checking
+println("Example 17: Type Checking")
+println("type(42) = " + type(42))
+println("type('hello') = " + type("hello"))
+println("type(true) = " + type(true))
+println("type([1,2,3]) = " + type([1, 2, 3]))
+println("type({'a': 1}) = " + type({"a": "1"}))
+println("type(null) = " + type(null))
+println()
+
+# Example 18: Exception Handling
+println("Example 18: Exception Handling")
+try {
+    throw "This is an error!"
+} catch (error) {
+    println("Caught error: " + error)
+}
+println("Program continues after error")
+println()
+
+# Example 19: Safe Division
+println("Example 19: Safe Division")
+func safe_divide(a, b) {
+    try {
+        if b == 0 {
+            throw "Division by zero"
+        }
+        return a / b
+    } catch (error) {
+        println("Error: " + error)
+        return null
+    }
+}
+println("safe_divide(10, 2) = " + safe_divide(10, 2))
+println("safe_divide(10, 0) = " + safe_divide(10, 0))
+println()
+
+# Example 20: Namespace
+println("Example 20: Namespace")
+namespace Math {
+    PI_VAL = 3.14159
+    
+    func circle_area(radius) {
+        return PI_VAL * radius * radius
+    }
+    
+    func circle_circumference(radius) {
+        return 2 * PI_VAL * radius
+    }
+}
+radius = 5
+println("Radius: " + radius)
+println("Area: " + Math.circle_area(radius))
+println("Circumference: " + Math.circle_circumference(radius))
+println()
+
+# Example 21: Higher Order Functions
+println("Example 21: Higher Order Functions")
+func apply_twice(func, x) {
+    return func(func(x))
+}
+func double(x) {
+    return x * 2
+}
+result = apply_twice(double, 3)
+println("apply_twice(double, 3) = " + result)
+println()
+
+# Example 22: Range Usage
+println("Example 22: Range Usage")
+println("range(5): " + range(5))
+println("range(2, 7): " + range(2, 7))
+println("range(0, 10, 2): " + range(0, 10, 2))
+println()
+
+# Example 23: Sum Array
+println("Example 23: Sum Array")
+func sum(arr) {
+    total = 0
+    for num in arr {
+        total = total + num
+    }
+    return total
+}
+numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+println("Array: " + numbers)
+println("Sum: " + sum(numbers))
+println()
+
+# Example 24: Find Maximum
+println("Example 24: Find Maximum")
+func find_max(arr) {
+    if len(arr) == 0 {
+        return null
+    }
+    max_val = arr[0]
+    for num in arr {
+        if num > max_val {
+            max_val = num
+        }
+    }
+    return max_val
+}
+numbers = [3, 7, 2, 9, 1, 5, 8]
+println("Array: " + numbers)
+println("Maximum: " + find_max(numbers))
+println()
+
+# Example 25: Reverse Array
+println("Example 25: Reverse Array")
+func reverse(arr) {
+    result = []
+    i = len(arr) - 1
+    while i >= 0 {
+        push(result, arr[i])
+        i = i - 1
+    }
+    return result
+}
+original = [1, 2, 3, 4, 5]
+reversed = reverse(original)
+println("Original: " + original)
+println("Reversed: " + reversed)
+println()
+
+# Example 26: Fibonacci
+println("Example 26: Fibonacci")
+func fibonacci(n) {
+    if n <= 1 {
+        return n
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}
+println("Fibonacci sequence (first 10):")
+for i in range(10) {
+    println("fib(" + i + ") = " + fibonacci(i))
+}
+println()
+
+# Example 27: Palindrome Check
+println("Example 27: Palindrome Check")
+func is_palindrome(str) {
+    cleaned = lower(trim(str))
+    length = len(cleaned)
+    for i in range(length / 2) {
+        if cleaned[i] != cleaned[length - 1 - i] {
+            return false
+        }
+    }
+    return true
+}
+println("'racecar' is palindrome: " + is_palindrome("racecar"))
+println("'hello' is palindrome: " + is_palindrome("hello"))
+println("'A man a plan a canal Panama' (without spaces): " + is_palindrome("AmanaplanacanalPanama"))
+println()
+
+# Example 28: Bitwise Operations
+println("Example 28: Bitwise Operations")
+a = 12
+b = 25
+println("a = " + a + ", b = " + b)
+println("a & b = " + (a & b))
+println("a | b = " + (a | b))
+println("a ^ b = " + (a ^ b))
+println("~a = " + (~a))
+println("a << 2 = " + (a << 2))
+println("b >> 2 = " + (b >> 2))
+println()
+
+# Example 29: Logical Operations
+println("Example 29: Logical Operations")
+x = true
+y = false
+println("x = " + x + ", y = " + y)
+println("x && y = " + (x && y))
+println("x || y = " + (x || y))
+println("!x = " + (!x))
+println("!y = " + (!y))
+println()
+
+# Example 30: Prime Number Check
+println("Example 30: Prime Number Check")
+func is_prime(n) {
+    if n <= 1 {
+        return false
+    }
+    if n <= 3 {
+        return true
+    }
+    if n % 2 == 0 {
+        return false
+    }
+    i = 3
+    while i * i <= n {
+        if n % i == 0 {
+            return false
+        }
+        i = i + 2
+    }
+    return true
+}
+println("Primes up to 50:")
+for i in range(2, 51) {
+    if is_prime(i) {
+        print(i + " ")
+    }
+}
+println("\n")
+
+# Example 31: File Operations
+println("Example 31: File Operations")
+filename = "test_output.txt"
+writeFile(filename, "Hello from OLLang!\n")
+appendFile(filename, "This is line 2\n")
+appendFile(filename, "This is line 3\n")
+if fileExists(filename) {
+    content = readFile(filename)
+    println("File content:")
+    println(content)
+    deleteFile(filename)
+    println("File deleted")
+}
+println()
+
+# Example 32: System Info
+println("Example 32: System Info")
+println("Process ID: " + pid())
+println("Current time: " + time())
+println("Timestamp: " + timestamp())
+println()
+
+# Example 33: Array Filter
+println("Example 33: Array Filter")
+func filter_evens(arr) {
+    result = []
+    for num in arr {
+        if num % 2 == 0 {
+            push(result, num)
+        }
+    }
+    return result
+}
+numbers = range(1, 21)
+evens = filter_evens(numbers)
+println("Numbers: " + numbers)
+println("Evens: " + evens)
+println()
+
+# Example 34: Array Map
+println("Example 34: Array Map")
+func map_double(arr) {
+    result = []
+    for num in arr {
+        push(result, num * 2)
+    }
+    return result
+}
+numbers = [1, 2, 3, 4, 5]
+doubled = map_double(numbers)
+println("Original: " + numbers)
+println("Doubled: " + doubled)
+println()
+
+# Example 35: String Building
+println("Example 35: String Building")
+func build_string(arr, separator) {
+    result = ""
+    for i in range(len(arr)) {
+        result = result + arr[i]
+        if i < len(arr) - 1 {
+            result = result + separator
+        }
+    }
+    return result
+}
+words = ["Hello", "World", "from", "OLLang"]
+sentence = build_string(words, " ")
+println("Words: " + words)
+println("Sentence: " + sentence)
+println()
+
+println("All examples completed!")
