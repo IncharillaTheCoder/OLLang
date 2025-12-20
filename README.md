@@ -1,5 +1,5 @@
 **yes ik its horribly coded dont bully me**
-# Ollang - A Low-Level Scripting Language
+# Ollang
 
 **Ollang** is basically python and c if they had a baby (also a bit of js)
 
