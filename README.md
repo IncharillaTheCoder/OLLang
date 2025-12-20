@@ -1,7 +1,7 @@
 ### yes ik its horribly coded dont bully me
 # Ollang - A Low-Level Scripting Language
 
-**Ollang** is a lightweight, embeddable scripting language designed for low-level programming tasks, featuring native Windows API integration, memory manipulation capabilities, and a clean, modern syntax.
+**Ollang** is basically python and c if they had a baby (also a bit of js)
 
 ## Features
 
@@ -49,10 +49,12 @@
 
 ## Syntax Examples
 
-```ollang
+```c
+# import
 import example.oll
 # Hello World
 print("Hello, World!");
+println("Hello, World!");
 
 # Variables and functions
 func greet(name) {
