@@ -59,7 +59,8 @@ int main(int argc, char* argv[]) {
         }
 
         std::string source;
-
+		
+		// the repl is 100% fucked but whatever no1 is gonna use it anyways!
         if (std::string(argv[1]) == "-repl") {
             runRepl();
             return 0;
@@ -97,4 +98,5 @@ int main(int argc, char* argv[]) {
         std::cerr << "Fatal Error: Unknown exception occurred\n" << std::endl;
     }
     return 0;
+
 }
