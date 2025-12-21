@@ -3,6 +3,11 @@
 #include <iostream>
 #include <sstream>
 
+// yes yes i know this is horribly coded but im just lazy and want it to work for now
+// i mean if you really think about it all code is horribly coded #cope
+// also make sure to do "vcpkg.exe install curl"
+// when setting up ollang otherwise http functions will not work
+
 std::string runOLLang(const std::string& source, Interpreter& interpreter) {
     Lexer lexer(source);
     auto tokens = lexer.tokenize();
@@ -89,7 +94,7 @@ int main(int argc, char* argv[]) {
         return 1;
 	}
     catch (...) {
-        
+        std::cerr << "Fatal Error: Unknown exception occurred\n" << std::endl;
     }
     return 0;
 }

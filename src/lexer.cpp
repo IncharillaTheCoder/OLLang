@@ -80,7 +80,8 @@ std::vector<Token> Lexer::tokenize() {
     std::unordered_set<std::string> keywords = {
         "func", "if", "else", "while", "for", "in", "return",
         "true", "false", "null", "alloc", "free", "read", "write", "syscall",
-        "import", "ImportDLL", "try", "catch", "async", "await", "throw", "namespace"
+        "import", "ImportDLL", "try", "catch", "async", "await", "throw", "namespace",
+        "process", "module", "inject", "hook", "scan", "window", "thread"
     };
 
     while (current() != '\0') {

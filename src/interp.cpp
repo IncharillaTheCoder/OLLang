@@ -12,15 +12,19 @@
 #include <random>
 #include <ctime>
 #include <future>
+#include <curl/curl.h> // make sure to install libcurl more info in ollang.cpp
 
+// Global caches
 static std::unordered_map<std::string, std::shared_ptr<ProgramNode>> importCache;
 static std::unordered_map<HMODULE, int> dllRefCount;
 
+// Constructor implementations
 NumberNode::NumberNode(double v) : value(v) {}
 StringNode::StringNode(const std::string& v) : value(v) {}
 BooleanNode::BooleanNode(bool v) : value(v) {}
 IdentifierNode::IdentifierNode(const std::string& n) : name(n) {}
 
+// Node evaluation implementations
 ValuePtr ProgramNode::eval(Interpreter& i) {
     for (auto& s : body) s->eval(i);
     return std::make_shared<NullValue>();
@@ -403,6 +407,7 @@ ValuePtr ImportNode::eval(Interpreter& i) {
     return std::make_shared<NullValue>();
 }
 
+// DLL function value
 struct DLLFunctionValue : BuiltinValue {
     FARPROC funcPtr;
     HMODULE hModule;
@@ -593,6 +598,7 @@ ValuePtr TryCatchNode::eval(Interpreter& i) {
     return std::make_shared<NullValue>();
 }
 
+// Promise value for async operations
 struct PromiseValue : Value {
     std::future<ValuePtr> future;
     bool resolved = false;
@@ -617,6 +623,7 @@ struct PromiseValue : Value {
     }
 };
 
+// Async function value
 struct AsyncFunctionValue : FunctionValue {
     AsyncFunctionValue(const std::string& n, const std::vector<std::string>& p,
         const std::vector<std::shared_ptr<Node>>& b)
@@ -671,6 +678,7 @@ ValuePtr AwaitNode::eval(Interpreter& i) {
     throw std::runtime_error("Cannot await non-promise value");
 }
 
+// Interpreter constructor and basic methods
 Interpreter::Interpreter() {
     scopes.push_back({});
     initBuiltins();
@@ -846,7 +854,9 @@ uint64_t Interpreter::syscall(uint64_t num, uint64_t a1, uint64_t a2, uint64_t a
     }
 }
 
+// Initialize all built-in/stdlib functions
 void Interpreter::initBuiltins() {
+    // Basic I/O 
     scopes[0]["print"] = std::make_shared<BuiltinValue>("print",
         [this](const std::vector<ValuePtr>& args) -> ValuePtr {
             std::string s;
@@ -869,6 +879,7 @@ void Interpreter::initBuiltins() {
             return std::make_shared<NullValue>();
         });
 
+    // Math functions
     scopes[0]["abs"] = std::make_shared<BuiltinValue>("abs",
         [](const std::vector<ValuePtr>& args) -> ValuePtr {
             if (args.size() != 1) throw std::runtime_error("abs expects 1 argument");
@@ -934,6 +945,7 @@ void Interpreter::initBuiltins() {
             return std::make_shared<NumberValue>(exp(num->value));
         });
 
+    // Random number generation
     static std::mt19937 rng(static_cast<unsigned int>(time(nullptr)));
 
     scopes[0]["rand"] = std::make_shared<BuiltinValue>("rand",
@@ -968,6 +980,7 @@ void Interpreter::initBuiltins() {
             return std::make_shared<NumberValue>(dist(rng));
         });
 
+    // String manipulation functions
     scopes[0]["upper"] = std::make_shared<BuiltinValue>("upper",
         [](const std::vector<ValuePtr>& args) -> ValuePtr {
             if (args.size() != 1) throw std::runtime_error("upper expects 1 argument");
@@ -1018,6 +1031,7 @@ void Interpreter::initBuiltins() {
             return arr;
         });
 
+    // Array functions
     scopes[0]["len"] = std::make_shared<BuiltinValue>("len",
         [](const std::vector<ValuePtr>& args) -> ValuePtr {
             if (args.size() != 1) throw std::runtime_error("len expects 1 argument");
@@ -1085,6 +1099,7 @@ void Interpreter::initBuiltins() {
             throw std::runtime_error("range expects 1-3 arguments");
         });
 
+    // File operations
     scopes[0]["file_write"] = std::make_shared<BuiltinValue>("file_write",
         [](const std::vector<ValuePtr>& args) -> ValuePtr {
             if (args.size() < 2) throw std::runtime_error("file_write expects filename and content");
@@ -1159,6 +1174,7 @@ void Interpreter::initBuiltins() {
             }
         });
 
+    // System functions
     scopes[0]["exit"] = std::make_shared<BuiltinValue>("exit",
         [](const std::vector<ValuePtr>& args) -> ValuePtr {
             int code = 0;
@@ -1181,19 +1197,20 @@ void Interpreter::initBuiltins() {
 
     scopes[0]["pid"] = std::make_shared<BuiltinValue>("pid",
         [](const std::vector<ValuePtr>& args) -> ValuePtr {
-            return std::make_shared<NumberValue>(GetCurrentProcessId());
+            return std::make_shared<NumberValue>(static_cast<double>(GetCurrentProcessId()));
         });
 
     scopes[0]["tid"] = std::make_shared<BuiltinValue>("tid",
         [](const std::vector<ValuePtr>& args) -> ValuePtr {
-            return std::make_shared<NumberValue>(GetCurrentThreadId());
+            return std::make_shared<NumberValue>(static_cast<double>(GetCurrentThreadId()));
         });
 
     scopes[0]["time"] = std::make_shared<BuiltinValue>("time",
         [](const std::vector<ValuePtr>& args) -> ValuePtr {
-            return std::make_shared<NumberValue>(GetTickCount64());
+            return std::make_shared<NumberValue>(static_cast<double>(GetTickCount64()));
         });
 
+    // Memory operations
     scopes[0]["memcpy"] = std::make_shared<BuiltinValue>("memcpy",
         [](const std::vector<ValuePtr>& args) -> ValuePtr {
             if (args.size() != 3) throw std::runtime_error("memcpy expects 3 arguments");
@@ -1225,6 +1242,7 @@ void Interpreter::initBuiltins() {
             return std::make_shared<PointerValue>(ptr);
         });
 
+    // Type checking
     scopes[0]["type"] = std::make_shared<BuiltinValue>("type",
         [](const std::vector<ValuePtr>& args) -> ValuePtr {
             if (args.size() != 1) throw std::runtime_error("type expects 1 argument");
@@ -1240,6 +1258,7 @@ void Interpreter::initBuiltins() {
             return std::make_shared<StringValue>("unknown");
         });
 
+    // Input function
     scopes[0]["input"] = std::make_shared<BuiltinValue>("input",
         [](const std::vector<ValuePtr>& args) -> ValuePtr {
             std::string prompt = "";
@@ -1250,6 +1269,7 @@ void Interpreter::initBuiltins() {
             return std::make_shared<StringValue>(input);
         });
 
+    // Async functions
     scopes[0]["async_sleep"] = std::make_shared<BuiltinValue>("async_sleep",
         [](const std::vector<ValuePtr>& args) -> ValuePtr {
             if (args.size() != 1) throw std::runtime_error("async_sleep expects 1 argument");
@@ -1257,14 +1277,15 @@ void Interpreter::initBuiltins() {
             if (!num) throw std::runtime_error("async_sleep requires number");
 
             auto promise = std::make_shared<PromiseValue>(
-                std::async(std::launch::async, [ms = num->value]() -> ValuePtr {
-                    Sleep(static_cast<DWORD>(ms));
+                std::async(std::launch::async, [ms = static_cast<DWORD>(num->value)]() -> ValuePtr {
+                    Sleep(ms);
                     return std::make_shared<NullValue>();
                     })
             );
             return promise;
         });
 
+    // Error handling
     scopes[0]["throw"] = std::make_shared<BuiltinValue>("throw",
         [](const std::vector<ValuePtr>& args) -> ValuePtr {
             std::string message = "Error";
@@ -1275,6 +1296,7 @@ void Interpreter::initBuiltins() {
             return std::make_shared<NullValue>();
         });
 
+    // Higher-order functions
     scopes[0]["map"] = std::make_shared<BuiltinValue>("map",
         [this](const std::vector<ValuePtr>& args) -> ValuePtr {
             if (args.size() != 2) throw std::runtime_error("map expects 2 arguments");
@@ -1322,6 +1344,7 @@ void Interpreter::initBuiltins() {
             return result;
         });
 
+    // DLL import function
     scopes[0]["ImportDLL"] = std::make_shared<BuiltinValue>("ImportDLL",
         [this](const std::vector<ValuePtr>& args) -> ValuePtr {
             if (args.size() < 2 || args.size() > 3) throw std::runtime_error("ImportDLL expects 2 or 3 arguments");
@@ -1369,17 +1392,17 @@ void Interpreter::initBuiltins() {
 
                 if (funcName == "GetCurrentProcessId") {
                     DWORD pid = GetCurrentProcessId();
-                    return std::make_shared<NumberValue>(pid);
+                    return std::make_shared<NumberValue>(static_cast<double>(pid));
                 }
 
                 if (funcName == "GetCurrentThreadId") {
                     DWORD tid = GetCurrentThreadId();
-                    return std::make_shared<NumberValue>(tid);
+                    return std::make_shared<NumberValue>(static_cast<double>(tid));
                 }
 
                 if (funcName == "GetTickCount") {
                     DWORD ticks = GetTickCount();
-                    return std::make_shared<NumberValue>(ticks);
+                    return std::make_shared<NumberValue>(static_cast<double>(ticks));
                 }
 
                 if (funcName == "Sleep") {
@@ -1398,5 +1421,428 @@ void Interpreter::initBuiltins() {
             this->setVar(alias, dllFunc);
             return dllFunc;
         });
+
+    // Process manipulation functions
+    scopes[0]["find_process"] = std::make_shared<BuiltinValue>("find_process",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 1) throw std::runtime_error("find_process expects 1 argument");
+            auto name = dynamic_cast<StringValue*>(args[0].get());
+            if (!name) throw std::runtime_error("find_process requires string");
+
+            unsigned long pid = ollang_find_process_id(name->value.c_str());
+            return std::make_shared<NumberValue>(static_cast<double>(pid));
+        });
+
+    scopes[0]["open_process"] = std::make_shared<BuiltinValue>("open_process",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 2) throw std::runtime_error("open_process expects 2 arguments");
+            auto pidVal = dynamic_cast<NumberValue*>(args[0].get());
+            auto accessVal = dynamic_cast<NumberValue*>(args[1].get());
+            if (!pidVal || !accessVal) throw std::runtime_error("open_process requires numbers");
+
+            void* hProcess = ollang_open_process(
+                static_cast<unsigned long>(pidVal->value),
+                static_cast<unsigned long>(accessVal->value)
+            );
+            return std::make_shared<PointerValue>(hProcess);
+        });
+
+    scopes[0]["close_handle"] = std::make_shared<BuiltinValue>("close_handle",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 1) throw std::runtime_error("close_handle expects 1 argument");
+            auto ptr = dynamic_cast<PointerValue*>(args[0].get());
+            if (!ptr) throw std::runtime_error("close_handle requires pointer");
+
+            int result = ollang_close_handle(ptr->ptr);
+            return std::make_shared<BooleanValue>(result != 0);
+        });
+
+    // External memory functions
+    scopes[0]["read_process_memory"] = std::make_shared<BuiltinValue>("read_process_memory",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 4) throw std::runtime_error("read_process_memory expects 4 arguments");
+            auto process = dynamic_cast<PointerValue*>(args[0].get());
+            auto address = dynamic_cast<PointerValue*>(args[1].get());
+            auto buffer = dynamic_cast<PointerValue*>(args[2].get());
+            auto size = dynamic_cast<NumberValue*>(args[3].get());
+            if (!process || !address || !buffer || !size)
+                throw std::runtime_error("read_process_memory requires pointers and size");
+
+            int result = ollang_read_process_memory(
+                process->ptr,
+                address->ptr,
+                buffer->ptr,
+                static_cast<size_t>(size->value)
+            );
+            return std::make_shared<BooleanValue>(result != 0);
+        });
+
+    scopes[0]["write_process_memory"] = std::make_shared<BuiltinValue>("write_process_memory",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 4) throw std::runtime_error("write_process_memory expects 4 arguments");
+            auto process = dynamic_cast<PointerValue*>(args[0].get());
+            auto address = dynamic_cast<PointerValue*>(args[1].get());
+            auto buffer = dynamic_cast<PointerValue*>(args[2].get());
+            auto size = dynamic_cast<NumberValue*>(args[3].get());
+            if (!process || !address || !buffer || !size)
+                throw std::runtime_error("write_process_memory requires pointers and size");
+
+            int result = ollang_write_process_memory(
+                process->ptr,
+                address->ptr,
+                buffer->ptr,
+                static_cast<size_t>(size->value)
+            );
+            return std::make_shared<BooleanValue>(result != 0);
+        });
+
+    // DLL injection
+    scopes[0]["inject_dll"] = std::make_shared<BuiltinValue>("inject_dll",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 2) throw std::runtime_error("inject_dll expects 2 arguments");
+            auto pid = dynamic_cast<NumberValue*>(args[0].get());
+            auto dllPath = dynamic_cast<StringValue*>(args[1].get());
+            if (!pid || !dllPath) throw std::runtime_error("inject_dll requires number and string");
+
+            int result = ollang_inject_dll(
+                static_cast<unsigned long>(pid->value),
+                dllPath->value.c_str()
+            );
+            return std::make_shared<BooleanValue>(result != 0);
+        });
+
+    // Memory scanning
+    scopes[0]["scan_memory"] = std::make_shared<BuiltinValue>("scan_memory",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 5) throw std::runtime_error("scan_memory expects 5 arguments");
+            auto process = dynamic_cast<PointerValue*>(args[0].get());
+            auto start = dynamic_cast<PointerValue*>(args[1].get());
+            auto size = dynamic_cast<NumberValue*>(args[2].get());
+            auto pattern = dynamic_cast<PointerValue*>(args[3].get());
+            auto patternLen = dynamic_cast<NumberValue*>(args[4].get());
+            if (!process || !start || !size || !pattern || !patternLen)
+                throw std::runtime_error("scan_memory requires pointers and numbers");
+
+            size_t result = ollang_scan_external(
+                process->ptr,
+                start->ptr,
+                static_cast<size_t>(size->value),
+                static_cast<const unsigned char*>(pattern->ptr),
+                static_cast<size_t>(patternLen->value)
+            );
+            return std::make_shared<NumberValue>(static_cast<double>(result));
+        });
+
+    // Window functions
+    scopes[0]["find_window"] = std::make_shared<BuiltinValue>("find_window",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 2) throw std::runtime_error("find_window expects 2 arguments");
+            auto className = dynamic_cast<StringValue*>(args[0].get());
+            auto windowName = dynamic_cast<StringValue*>(args[1].get());
+            if (!className || !windowName) throw std::runtime_error("find_window requires strings");
+
+            HWND hwnd = reinterpret_cast<HWND>(ollang_find_window(className->value.c_str(), windowName->value.c_str()));
+            if (!hwnd) {
+                return std::make_shared<NumberValue>(0);
+            }
+            return std::make_shared<NumberValue>(static_cast<double>(reinterpret_cast<uintptr_t>(hwnd)));
+        });
+
+    scopes[0]["get_window_pid"] = std::make_shared<BuiltinValue>("get_window_pid",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 1) throw std::runtime_error("get_window_pid expects 1 argument");
+            auto hwndVal = dynamic_cast<NumberValue*>(args[0].get());
+            if (!hwndVal) throw std::runtime_error("get_window_pid requires number");
+
+            HWND hwnd = reinterpret_cast<HWND>(static_cast<uintptr_t>(hwndVal->value));
+            unsigned long pid = ollang_get_window_process_id(hwnd);
+            return std::make_shared<NumberValue>(static_cast<double>(pid));
+        });
+
+    // Thread functions
+    scopes[0]["create_thread"] = std::make_shared<BuiltinValue>("create_thread",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 2) throw std::runtime_error("create_thread expects 2 arguments");
+            auto startAddress = dynamic_cast<PointerValue*>(args[0].get());
+            auto parameter = dynamic_cast<PointerValue*>(args[1].get());
+            if (!startAddress || !parameter) throw std::runtime_error("create_thread requires pointers");
+
+            void* thread = ollang_create_thread(startAddress->ptr, parameter->ptr);
+            return std::make_shared<PointerValue>(thread);
+        });
+
+    scopes[0]["suspend_thread"] = std::make_shared<BuiltinValue>("suspend_thread",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 1) throw std::runtime_error("suspend_thread expects 1 argument");
+            auto thread = dynamic_cast<PointerValue*>(args[0].get());
+            if (!thread) throw std::runtime_error("suspend_thread requires pointer");
+
+            int result = ollang_suspend_thread(thread->ptr);
+            return std::make_shared<BooleanValue>(result != 0);
+        });
+
+    scopes[0]["resume_thread"] = std::make_shared<BuiltinValue>("resume_thread",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 1) throw std::runtime_error("resume_thread expects 1 argument");
+            auto thread = dynamic_cast<PointerValue*>(args[0].get());
+            if (!thread) throw std::runtime_error("resume_thread requires pointer");
+
+            int result = ollang_resume_thread(thread->ptr);
+            return std::make_shared<BooleanValue>(result != 0);
+        });
+
+    // Hooking functions
+    scopes[0]["write_jmp"] = std::make_shared<BuiltinValue>("write_jmp",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 2) throw std::runtime_error("write_jmp expects 2 arguments");
+            auto target = dynamic_cast<PointerValue*>(args[0].get());
+            auto destination = dynamic_cast<PointerValue*>(args[1].get());
+            if (!target || !destination) throw std::runtime_error("write_jmp requires pointers");
+
+            int result = ollang_write_jmp(target->ptr, destination->ptr);
+            return std::make_shared<BooleanValue>(result != 0);
+        });
+
+    scopes[0]["write_call"] = std::make_shared<BuiltinValue>("write_call",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() != 2) throw std::runtime_error("write_call expects 2 arguments");
+            auto target = dynamic_cast<PointerValue*>(args[0].get());
+            auto destination = dynamic_cast<PointerValue*>(args[1].get());
+            if (!target || !destination) throw std::runtime_error("write_call requires pointers");
+
+            int result = ollang_write_call(target->ptr, destination->ptr);
+            return std::make_shared<BooleanValue>(result != 0);
+        });
+    // HTTP Implementation
+    scopes[0]["http_get"] = std::make_shared<BuiltinValue>("http_get",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.empty()) throw std::runtime_error("http_get requires URL");
+            auto url = dynamic_cast<StringValue*>(args[0].get());
+            if (!url) throw std::runtime_error("http_get requires STRING URL");
+
+            HttpRequest req;
+            req.method = "GET";
+            req.url = url->value;
+            req.timeout_ms = 30000;
+            req.verify_ssl = true;
+
+            HttpResponse resp;
+            resp.success = false;
+            resp.status_code = 0;
+
+            CURL* curl = curl_easy_init();
+            if (!curl) throw std::runtime_error("Failed to initialize CURL");
+
+            auto writeCallback = +[](void* contents, size_t size, size_t nmemb, void* userp) -> size_t {
+                size_t totalSize = size * nmemb;
+                ((std::string*)userp)->append((char*)contents, totalSize);
+                return totalSize;
+                };
+
+            curl_easy_setopt(curl, CURLOPT_URL, req.url.c_str());
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
+            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+            curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, (long)req.timeout_ms);
+
+            if (!req.verify_ssl) {
+                curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+                curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+            }
+
+            CURLcode res = curl_easy_perform(curl);
+
+            if (res != CURLE_OK) {
+                resp.error = curl_easy_strerror(res);
+                resp.success = false;
+                curl_easy_cleanup(curl);
+                throw std::runtime_error("HTTP GET failed: " + resp.error);
+            }
+
+            long status_code;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
+            resp.status_code = (int)status_code;
+            resp.success = true;
+
+            curl_easy_cleanup(curl);
+            return std::make_shared<StringValue>(resp.body);
+        }
+    );
+
+    scopes[0]["http_post"] = std::make_shared<BuiltinValue>("http_post",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() < 2) throw std::runtime_error("http_post requires URL and data");
+            auto url = dynamic_cast<StringValue*>(args[0].get());
+            auto data = dynamic_cast<StringValue*>(args[1].get());
+            if (!url || !data) throw std::runtime_error("http_post requires STRING URL and STRING data");
+
+            HttpRequest req;
+            req.method = "POST";
+            req.url = url->value;
+            req.body = data->value;
+            req.timeout_ms = 30000;
+            req.verify_ssl = true;
+
+            HttpResponse resp;
+            resp.success = false;
+            resp.status_code = 0;
+
+            CURL* curl = curl_easy_init();
+            if (!curl) throw std::runtime_error("Failed to initialize CURL");
+
+            auto writeCallback = +[](void* contents, size_t size, size_t nmemb, void* userp) -> size_t {
+                size_t totalSize = size * nmemb;
+                ((std::string*)userp)->append((char*)contents, totalSize);
+                return totalSize;
+                };
+
+            curl_easy_setopt(curl, CURLOPT_URL, req.url.c_str());
+            curl_easy_setopt(curl, CURLOPT_POST, 1L);
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, req.body.c_str());
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
+            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+            curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, (long)req.timeout_ms);
+
+            if (!req.verify_ssl) {
+                curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+                curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+            }
+
+            CURLcode res = curl_easy_perform(curl);
+
+            if (res != CURLE_OK) {
+                resp.error = curl_easy_strerror(res);
+                resp.success = false;
+                curl_easy_cleanup(curl);
+                throw std::runtime_error("HTTP POST failed: " + resp.error);
+            }
+
+            long status_code;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
+            resp.status_code = (int)status_code;
+            resp.success = true;
+
+            curl_easy_cleanup(curl);
+            return std::make_shared<StringValue>(resp.body);
+        }
+    );
+
+    scopes[0]["http_put"] = std::make_shared<BuiltinValue>("http_put",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.size() < 2) throw std::runtime_error("http_put requires URL and data");
+            auto url = dynamic_cast<StringValue*>(args[0].get());
+            auto data = dynamic_cast<StringValue*>(args[1].get());
+            if (!url || !data) throw std::runtime_error("http_put requires STRING URL and STRING data");
+
+            HttpRequest req;
+            req.method = "PUT";
+            req.url = url->value;
+            req.body = data->value;
+            req.timeout_ms = 30000;
+            req.verify_ssl = true;
+
+            HttpResponse resp;
+            resp.success = false;
+            resp.status_code = 0;
+
+            CURL* curl = curl_easy_init();
+            if (!curl) throw std::runtime_error("Failed to initialize CURL");
+
+            auto writeCallback = +[](void* contents, size_t size, size_t nmemb, void* userp) -> size_t {
+                size_t totalSize = size * nmemb;
+                ((std::string*)userp)->append((char*)contents, totalSize);
+                return totalSize;
+                };
+
+            curl_easy_setopt(curl, CURLOPT_URL, req.url.c_str());
+            curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, req.body.c_str());
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
+            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+            curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, (long)req.timeout_ms);
+
+            if (!req.verify_ssl) {
+                curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+                curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+            }
+
+            CURLcode res = curl_easy_perform(curl);
+
+            if (res != CURLE_OK) {
+                resp.error = curl_easy_strerror(res);
+                resp.success = false;
+                curl_easy_cleanup(curl);
+                throw std::runtime_error("HTTP PUT failed: " + resp.error);
+            }
+
+            long status_code;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
+            resp.status_code = (int)status_code;
+            resp.success = true;
+
+            curl_easy_cleanup(curl);
+            return std::make_shared<StringValue>(resp.body);
+        }
+    );
+
+    scopes[0]["http_delete"] = std::make_shared<BuiltinValue>("http_delete",
+        [](const std::vector<ValuePtr>& args) -> ValuePtr {
+            if (args.empty()) throw std::runtime_error("http_delete requires URL");
+            auto url = dynamic_cast<StringValue*>(args[0].get());
+            if (!url) throw std::runtime_error("http_delete requires STRING URL");
+
+            HttpRequest req;
+            req.method = "DELETE";
+            req.url = url->value;
+            req.timeout_ms = 30000;
+            req.verify_ssl = true;
+
+            HttpResponse resp;
+            resp.success = false;
+            resp.status_code = 0;
+
+            CURL* curl = curl_easy_init();
+            if (!curl) throw std::runtime_error("Failed to initialize CURL");
+
+            auto writeCallback = +[](void* contents, size_t size, size_t nmemb, void* userp) -> size_t {
+                size_t totalSize = size * nmemb;
+                ((std::string*)userp)->append((char*)contents, totalSize);
+                return totalSize;
+                };
+
+            curl_easy_setopt(curl, CURLOPT_URL, req.url.c_str());
+            curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
+            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+            curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, (long)req.timeout_ms);
+
+            if (!req.verify_ssl) {
+                curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+                curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+            }
+
+            CURLcode res = curl_easy_perform(curl);
+
+            if (res != CURLE_OK) {
+                resp.error = curl_easy_strerror(res);
+                resp.success = false;
+                curl_easy_cleanup(curl);
+                throw std::runtime_error("HTTP DELETE failed: " + resp.error);
+            }
+
+            long status_code;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
+            resp.status_code = (int)status_code;
+            resp.success = true;
+
+            curl_easy_cleanup(curl);
+            return std::make_shared<StringValue>(resp.body);
+        }
+    );
+
+    // Initialize stdlib (ollang standard library from stdlib.cpp)
     InitStdLib(*this);
 }

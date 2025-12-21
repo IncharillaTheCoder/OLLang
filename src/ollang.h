@@ -1,5 +1,7 @@
 #pragma once
 
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 #include <string>
 #include <vector>
 #include <memory>
@@ -8,6 +10,8 @@
 #include <functional>
 #include <variant>
 #include <cstdint>
+#include <future>
+#include "ollang_c.h"
 
 struct Value;
 struct Node;
@@ -82,6 +86,11 @@ struct PointerValue : Value {
     bool isTruthy() const override;
     ~PointerValue();
 };
+
+struct PromiseValue;
+struct AsyncFunctionValue;
+
+struct DLLFunctionValue;
 
 struct Token {
     std::string type;
@@ -317,6 +326,31 @@ struct ListComprehensionNode : Node {
     ValuePtr eval(class Interpreter& interpreter) override;
 };
 
+struct HttpRequest {
+    std::string method; // GET, POST, PUT, DELETE
+    std::string url;
+	std::map < std::string, std::string> headers;
+	std::string body;
+    int timeout_ms;
+	bool verify_ssl;
+};
+
+struct HttpResponse {
+	int status_code;
+	std::map<std::string, std::string> headers;
+    std::string body;
+    std::string error;
+    bool success;
+};
+
+struct HttpClient {
+public: 
+	static HttpResponse request(const HttpRequest& req);
+	static std::string download(const std::string& url, const std::string& save_path);
+    static std::string post_json(const std::string& url, const std::string& json_data);
+};
+
+
 class Lexer {
     std::string source;
     size_t pos = 0;
@@ -369,7 +403,7 @@ private:
     std::shared_ptr<Node> parseComparison();
     std::shared_ptr<Node> parseTerm();
     std::shared_ptr<Node> parseFactor();
-    std::shared_ptr<Node> parsePower(); // Added for power operator
+    std::shared_ptr<Node> parsePower();
     std::shared_ptr<Node> parseUnary();
     std::shared_ptr<Node> parseCall();
     std::shared_ptr<Node> parsePrimary();
@@ -380,6 +414,13 @@ private:
     std::shared_ptr<Node> parseImportDLL();
     std::shared_ptr<Node> parseNamespace();
     std::shared_ptr<Node> parseListComprehension();
+
+    std::shared_ptr<Node> parseProcessStatement();
+    std::shared_ptr<Node> parseInjectStatement();
+    std::shared_ptr<Node> parseHookStatement();
+    std::shared_ptr<Node> parseScanStatement();
+    std::shared_ptr<Node> parseWindowStatement();
+    std::shared_ptr<Node> parseThreadStatement();
 };
 
 class Interpreter {
@@ -421,4 +462,5 @@ public:
     uint64_t syscall(uint64_t num, uint64_t a1, uint64_t a2, uint64_t a3,
         uint64_t a4, uint64_t a5, uint64_t a6);
 };
+
 void InitStdLib(Interpreter& interpreter);
