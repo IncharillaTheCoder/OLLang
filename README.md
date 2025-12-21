@@ -49,35 +49,4 @@
 
 ## Syntax Examples
 
-```c
-# import
-import example.oll
-# Hello World
-print("Hello, World!");
-println("Hello, World!");
-
-# Variables and functions
-func greet(name) {
-    return "Hello, " + name + "!";
-}
-
-println(greet("User"));
-
-# Low-level memory operations
-ptr = alloc(1024);          # Allocate 1KB
-write(ptr, 0, 42, "i32");   # Write 32-bit integer
-value = read(ptr, 0, "i32"); # Read it back
-free(ptr);                   # Free memory
-
-# System integration
-import "user32.dll" as user32;
-user32.MessageBoxA(0, "Hello", "Title", 0);
-
-# Async operations
-async func fetchData(url) {
-    # Async operation
-    return await http.get(url); # http.get isnt real, just an example your supposed to implement this yourself
-}
-
-# List comprehensions
-numbers = [x for x in range(10) if x % 2 == 0];```
+none rn ill add some later (the ones b4 were outdated)
