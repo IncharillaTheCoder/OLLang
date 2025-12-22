@@ -350,6 +350,14 @@ public:
     static std::string post_json(const std::string& url, const std::string& json_data);
 };
 
+struct Base64 {
+public:
+    static std::string encode(const std::string& input);
+	static std::string decode(const std::string& input);
+    static std::string encodeFile(const std::string& filename);
+    static bool decodeFile(const std::string& encoded, const std::string& output_filename);
+};
+
 
 class Lexer {
     std::string source;
@@ -464,3 +472,5 @@ public:
 };
 
 void InitStdLib(Interpreter& interpreter);
+bool isProcessRunning(const std::string& processName);
+DWORD getProcessIdByName(const std::string& processName);

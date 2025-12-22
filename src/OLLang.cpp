@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <windows.h>
 
 // yes yes i know this is horribly coded but im just lazy and want it to work for now
 // i mean if you really think about it all code is horribly coded #cope
@@ -59,7 +60,7 @@ int main(int argc, char* argv[]) {
         }
 
         std::string source;
-		
+
 		// the repl is 100% fucked but whatever no1 is gonna use it anyways!
         if (std::string(argv[1]) == "-repl") {
             runRepl();
@@ -98,5 +99,4 @@ int main(int argc, char* argv[]) {
         std::cerr << "Fatal Error: Unknown exception occurred\n" << std::endl;
     }
     return 0;
-
 }

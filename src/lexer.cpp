@@ -81,7 +81,7 @@ std::vector<Token> Lexer::tokenize() {
         "func", "if", "else", "while", "for", "in", "return",
         "true", "false", "null", "alloc", "free", "read", "write", "syscall",
         "import", "ImportDLL", "try", "catch", "async", "await", "throw", "namespace",
-        "process", "module", "inject", "hook", "scan", "window", "thread"
+        "process", "module", "inject", "hook", "scan", "window", "thread",
     };
 
     while (current() != '\0') {

@@ -3,6 +3,8 @@
 #include <variant>
 #include <sstream>
 #include <memory>
+#include <algorithm>
+#include <unordered_set>
 
 // Helper functions for string node checking
 namespace {
@@ -15,6 +17,17 @@ namespace {
             return strNode->value;
         }
         return "";
+    }
+
+    bool isNumberNode(const std::shared_ptr<Node>& node) {
+        return dynamic_cast<NumberNode*>(node.get()) != nullptr;
+    }
+
+    double getNumberNodeValue(const std::shared_ptr<Node>& node) {
+        if (auto numNode = dynamic_cast<NumberNode*>(node.get())) {
+            return numNode->value;
+        }
+        return 0.0;
     }
 }
 
@@ -80,7 +93,23 @@ std::shared_ptr<ProgramNode> Parser::parse() {
 // Parse different statement types
 std::shared_ptr<Node> Parser::parseStatement() {
     // Check for all possible statement keywords
-    if (match("keyword", "func")) return parseFunc();
+    if (match("keyword", "func")) {
+        if (match("keyword", "func") || match("keyword", "async")) {
+            // Handle async func or other combinations
+            if (match("keyword", "async")) {
+                advance(); // skip async
+                return parseAsyncFunc();
+            }
+        }
+        return parseFunc();
+    }
+    if (match("keyword", "async")) {
+        advance();
+        if (match("keyword", "func")) {
+            return parseAsyncFunc();
+        }
+        throw std::runtime_error("Expected 'func' after 'async'");
+    }
     if (match("keyword", "if")) return parseIf();
     if (match("keyword", "while")) return parseWhile();
     if (match("keyword", "for")) return parseFor();
@@ -91,7 +120,6 @@ std::shared_ptr<Node> Parser::parseStatement() {
     if (match("keyword", "write")) return parseWriteMem();
     if (match("keyword", "syscall")) return parseSyscall();
     if (match("keyword", "try")) return parseTryCatch();
-    if (match("keyword", "async")) return parseAsyncFunc();
     if (match("keyword", "throw")) return parseThrow();
     if (match("keyword", "import")) {
         advance();
@@ -101,13 +129,14 @@ std::shared_ptr<Node> Parser::parseStatement() {
     }
     if (match("keyword", "ImportDLL")) return parseImportDLL();
     if (match("keyword", "namespace")) return parseNamespace();
-    // New low-level statements
+    if (match("keyword", "await")) return parseAwait();
     if (match("keyword", "process")) return parseProcessStatement();
     if (match("keyword", "inject")) return parseInjectStatement();
     if (match("keyword", "hook")) return parseHookStatement();
     if (match("keyword", "scan")) return parseScanStatement();
     if (match("keyword", "window")) return parseWindowStatement();
     if (match("keyword", "thread")) return parseThreadStatement();
+
     return parseExpressionStatement();
 }
 
@@ -171,7 +200,9 @@ std::shared_ptr<Node> Parser::parseFor() {
 std::shared_ptr<Node> Parser::parseReturn() {
     expect("keyword", "return");
     auto n = std::make_shared<ReturnNode>();
-    n->value = parseExpression();
+    if (!match("punctuation", ";") && !match("punctuation", "}")) {
+        n->value = parseExpression();
+    }
     return n;
 }
 
@@ -189,6 +220,7 @@ std::shared_ptr<Node> Parser::parseSyscall() {
         }
     }
     expect("punctuation", ")");
+    expect("punctuation", ";");
     return n;
 }
 
@@ -199,6 +231,7 @@ std::shared_ptr<Node> Parser::parseAlloc() {
     auto n = std::make_shared<AllocNode>();
     n->size = parseExpression();
     expect("punctuation", ")");
+    expect("punctuation", ";");
     return n;
 }
 
@@ -209,6 +242,7 @@ std::shared_ptr<Node> Parser::parseFree() {
     auto n = std::make_shared<FreeNode>();
     n->ptr = parseExpression();
     expect("punctuation", ")");
+    expect("punctuation", ";");
     return n;
 }
 
@@ -223,6 +257,7 @@ std::shared_ptr<Node> Parser::parseReadMem() {
     expect("punctuation", ",");
     n->type = std::get<std::string>(expect("string").value);
     expect("punctuation", ")");
+    expect("punctuation", ";");
     return n;
 }
 
@@ -239,6 +274,7 @@ std::shared_ptr<Node> Parser::parseWriteMem() {
     expect("punctuation", ",");
     n->type = std::get<std::string>(expect("string").value);
     expect("punctuation", ")");
+    expect("punctuation", ";");
     return n;
 }
 
@@ -290,6 +326,7 @@ std::shared_ptr<Node> Parser::parseThrow() {
     expect("keyword", "throw");
     auto n = std::make_shared<ThrowNode>();
     n->value = parseExpression();
+    expect("punctuation", ";");
     return n;
 }
 
@@ -312,6 +349,7 @@ std::shared_ptr<Node> Parser::parseImportDLL() {
     }
 
     expect("punctuation", ")");
+    expect("punctuation", ";");
 
     std::string dllPath = getStringNodeValue(dllPathExpr);
     std::string funcName = getStringNodeValue(funcNameExpr);
@@ -341,24 +379,47 @@ std::shared_ptr<Node> Parser::parseNamespace() {
     return n;
 }
 
+// Parse list comprehension (used in parsePrimary)
+std::shared_ptr<Node> Parser::parseListComprehension() {
+    // This is called from parsePrimary when we detect [expr for var in iterable]
+    auto expr = parseExpression();
+    expect("keyword", "for");
+    std::string var = std::get<std::string>(expect("identifier").value);
+    expect("keyword", "in");
+    auto iterable = parseExpression();
+
+    std::shared_ptr<Node> condition = nullptr;
+    if (match("keyword", "if")) {
+        advance();
+        condition = parseExpression();
+    }
+
+    expect("punctuation", "]");
+
+    auto n = std::make_shared<ListComprehensionNode>();
+    n->expression = expr;
+    n->var = var;
+    n->iterable = iterable;
+    n->condition = condition;
+    return n;
+}
+
 // Parse process manipulation statement
 std::shared_ptr<Node> Parser::parseProcessStatement() {
     expect("keyword", "process");
     std::string action = std::get<std::string>(expect("identifier").value);
 
     if (action == "find") {
-        // Find process by name
         expect("punctuation", "(");
         auto processName = parseExpression();
         expect("punctuation", ")");
 
         auto callNode = std::make_shared<CallNode>();
-        callNode->callee = std::make_shared<IdentifierNode>("find_process");
+        callNode->callee = std::make_shared<IdentifierNode>("findProcess");
         callNode->arguments.push_back(processName);
         return callNode;
     }
     else if (action == "open") {
-        // Open process with specific access
         expect("punctuation", "(");
         auto pid = parseExpression();
         expect("punctuation", ",");
@@ -366,19 +427,18 @@ std::shared_ptr<Node> Parser::parseProcessStatement() {
         expect("punctuation", ")");
 
         auto callNode = std::make_shared<CallNode>();
-        callNode->callee = std::make_shared<IdentifierNode>("open_process");
+        callNode->callee = std::make_shared<IdentifierNode>("openProcess");
         callNode->arguments.push_back(pid);
         callNode->arguments.push_back(access);
         return callNode;
     }
     else if (action == "close") {
-        // Close process handle
         expect("punctuation", "(");
         auto handle = parseExpression();
         expect("punctuation", ")");
 
         auto callNode = std::make_shared<CallNode>();
-        callNode->callee = std::make_shared<IdentifierNode>("close_handle");
+        callNode->callee = std::make_shared<IdentifierNode>("closeHandle");
         callNode->arguments.push_back(handle);
         return callNode;
     }
@@ -396,7 +456,7 @@ std::shared_ptr<Node> Parser::parseInjectStatement() {
     expect("punctuation", ")");
 
     auto callNode = std::make_shared<CallNode>();
-    callNode->callee = std::make_shared<IdentifierNode>("inject_dll");
+    callNode->callee = std::make_shared<IdentifierNode>("injectDLL");
     callNode->arguments.push_back(pid);
     callNode->arguments.push_back(dllPath);
     return callNode;
@@ -415,10 +475,10 @@ std::shared_ptr<Node> Parser::parseHookStatement() {
     auto callNode = std::make_shared<CallNode>();
 
     if (type == "jmp") {
-        callNode->callee = std::make_shared<IdentifierNode>("write_jmp");
+        callNode->callee = std::make_shared<IdentifierNode>("writeJmp");
     }
     else if (type == "call") {
-        callNode->callee = std::make_shared<IdentifierNode>("write_call");
+        callNode->callee = std::make_shared<IdentifierNode>("writeCall");
     }
     else {
         throw std::runtime_error("Unknown hook type: " + type);
@@ -436,7 +496,6 @@ std::shared_ptr<Node> Parser::parseScanStatement() {
     expect("punctuation", "(");
 
     if (type == "memory") {
-        // Scan memory for pattern
         auto process = parseExpression();
         expect("punctuation", ",");
         auto start = parseExpression();
@@ -449,7 +508,7 @@ std::shared_ptr<Node> Parser::parseScanStatement() {
         expect("punctuation", ")");
 
         auto callNode = std::make_shared<CallNode>();
-        callNode->callee = std::make_shared<IdentifierNode>("scan_memory");
+        callNode->callee = std::make_shared<IdentifierNode>("scanMemory");
         callNode->arguments.push_back(process);
         callNode->arguments.push_back(start);
         callNode->arguments.push_back(size);
@@ -467,7 +526,6 @@ std::shared_ptr<Node> Parser::parseWindowStatement() {
     std::string action = std::get<std::string>(expect("identifier").value);
 
     if (action == "find") {
-        // Find window by class/name
         expect("punctuation", "(");
         auto className = parseExpression();
         expect("punctuation", ",");
@@ -475,19 +533,18 @@ std::shared_ptr<Node> Parser::parseWindowStatement() {
         expect("punctuation", ")");
 
         auto callNode = std::make_shared<CallNode>();
-        callNode->callee = std::make_shared<IdentifierNode>("find_window");
+        callNode->callee = std::make_shared<IdentifierNode>("findWindow");
         callNode->arguments.push_back(className);
         callNode->arguments.push_back(windowName);
         return callNode;
     }
     else if (action == "getpid") {
-        // Get process ID from window handle
         expect("punctuation", "(");
         auto hwnd = parseExpression();
         expect("punctuation", ")");
 
         auto callNode = std::make_shared<CallNode>();
-        callNode->callee = std::make_shared<IdentifierNode>("get_window_pid");
+        callNode->callee = std::make_shared<IdentifierNode>("getWindowProcessId");
         callNode->arguments.push_back(hwnd);
         return callNode;
     }
@@ -501,7 +558,6 @@ std::shared_ptr<Node> Parser::parseThreadStatement() {
     std::string action = std::get<std::string>(expect("identifier").value);
 
     if (action == "create") {
-        // Create new thread
         expect("punctuation", "(");
         auto startAddress = parseExpression();
         expect("punctuation", ",");
@@ -509,30 +565,28 @@ std::shared_ptr<Node> Parser::parseThreadStatement() {
         expect("punctuation", ")");
 
         auto callNode = std::make_shared<CallNode>();
-        callNode->callee = std::make_shared<IdentifierNode>("create_thread");
+        callNode->callee = std::make_shared<IdentifierNode>("createThread");
         callNode->arguments.push_back(startAddress);
         callNode->arguments.push_back(parameter);
         return callNode;
     }
     else if (action == "suspend") {
-        // Suspend thread
         expect("punctuation", "(");
         auto threadHandle = parseExpression();
         expect("punctuation", ")");
 
         auto callNode = std::make_shared<CallNode>();
-        callNode->callee = std::make_shared<IdentifierNode>("suspend_thread");
+        callNode->callee = std::make_shared<IdentifierNode>("suspendThread");
         callNode->arguments.push_back(threadHandle);
         return callNode;
     }
     else if (action == "resume") {
-        // Resume thread
         expect("punctuation", "(");
         auto threadHandle = parseExpression();
         expect("punctuation", ")");
 
         auto callNode = std::make_shared<CallNode>();
-        callNode->callee = std::make_shared<IdentifierNode>("resume_thread");
+        callNode->callee = std::make_shared<IdentifierNode>("resumeThread");
         callNode->arguments.push_back(threadHandle);
         return callNode;
     }
@@ -551,14 +605,18 @@ std::vector<std::shared_ptr<Node>> Parser::parseBlock() {
 
 // Parse expression statement
 std::shared_ptr<Node> Parser::parseExpressionStatement() {
+    auto expr = parseExpression();
+    if (!match("punctuation", "}") && !match("keyword", "else") && !match("keyword", "catch")) {
+        expect("punctuation", ";");
+    }
+
     auto n = std::make_shared<ExpressionStatementNode>();
-    n->expression = parseExpression();
+    n->expression = expr;
     return n;
 }
 
 // Parse expression (top level)
 std::shared_ptr<Node> Parser::parseExpression() {
-    if (match("keyword", "await")) return parseAwait();
     return parseAssignment();
 }
 
@@ -642,11 +700,26 @@ std::shared_ptr<Node> Parser::parseTerm() {
     return left;
 }
 
-// Parse factor operators (*, /, %)
+// Parse factor operators (*, /, %, **)
 std::shared_ptr<Node> Parser::parseFactor() {
-    auto left = parseUnary();
+    auto left = parsePower();
     while (match("operator", "*") || match("operator", "/") ||
         match("operator", "%")) {
+        std::string op = std::get<std::string>(current()->value);
+        advance();
+        auto n = std::make_shared<BinaryOpNode>();
+        n->op = op;
+        n->left = left;
+        n->right = parsePower();
+        left = n;
+    }
+    return left;
+}
+
+// Parse power operator (**)
+std::shared_ptr<Node> Parser::parsePower() {
+    auto left = parseUnary();
+    while (match("operator", "**")) {
         std::string op = std::get<std::string>(current()->value);
         advance();
         auto n = std::make_shared<BinaryOpNode>();
@@ -668,6 +741,12 @@ std::shared_ptr<Node> Parser::parseUnary() {
         n->operand = parseUnary();
         return n;
     }
+
+    // Handle await expression
+    if (match("keyword", "await")) {
+        return parseAwait();
+    }
+
     return parseCall();
 }
 
@@ -711,7 +790,6 @@ std::shared_ptr<Node> Parser::parseCall() {
     return left;
 }
 
-// Parse primary expressions (literals, identifiers, parens, arrays, dicts)
 std::shared_ptr<Node> Parser::parsePrimary() {
     if (match("number")) {
         double val = std::get<double>(current()->value);
@@ -735,6 +813,28 @@ std::shared_ptr<Node> Parser::parsePrimary() {
         advance();
         return std::make_shared<NullNode>();
     }
+
+    // Handle keywords that should be treated as function identifiers
+    if (match("keyword")) {
+        std::string name = std::get<std::string>(current()->value);
+
+        // Check if this keyword should be treated as an identifier (function call)
+        std::unordered_set<std::string> functionKeywords = {
+            "checkapp", "getapppid", "waitforapp", "waitforappclose",
+            "killapp", "startapp", "getAvailableMemory", "UUID",
+            "httpGet", "httpPost", "httpPut", "httpDelete",
+            "base64Encode", "base64Decode", "base64EncodeFile",
+            "base64DecodeFile", "base64UrlEncode", "base64UrlDecode"
+        };
+
+        if (functionKeywords.count(name)) {
+            advance();
+            return std::make_shared<IdentifierNode>(name);
+        }
+
+        // If it's not a function keyword, let it fall through to error
+    }
+
     if (match("identifier")) {
         std::string name = std::get<std::string>(current()->value);
         advance();
@@ -757,23 +857,8 @@ std::shared_ptr<Node> Parser::parsePrimary() {
         auto first = parseExpression();
 
         if (match("keyword", "for")) {
-            expect("keyword", "for");
-            std::string var = std::get<std::string>(expect("identifier").value);
-            expect("keyword", "in");
-            auto iter = parseExpression();
-            std::shared_ptr<Node> cond = nullptr;
-            if (match("keyword", "if")) {
-                advance();
-                cond = parseExpression();
-            }
-            expect("punctuation", "]");
-
-            auto n = std::make_shared<ListComprehensionNode>();
-            n->expression = first;
-            n->var = var;
-            n->iterable = iter;
-            n->condition = cond;
-            return n;
+            // List comprehension
+            return parseListComprehension();
         }
 
         auto n = std::make_shared<ArrayNode>();
