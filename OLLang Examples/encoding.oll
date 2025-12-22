@@ -1,0 +1,19 @@
+# Base64 encoding/decoding
+
+# Encode string
+encoded = base64Encode("Hello World");
+println("Encoded:", encoded);
+
+# Decode string
+decoded = base64Decode(encoded);
+println("Decoded:", decoded);
+
+# Encode file to base64
+fileEncoded = base64EncodeFile("image.jpg");
+
+# Decode base64 to file
+base64DecodeFile(fileEncoded, "output.jpg");
+
+# URL-safe encoding
+urlSafe = base64UrlEncode("data with +/ characters");
+decoded = base64UrlDecode(urlSafe);

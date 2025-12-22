@@ -1,0 +1,14 @@
+# Asynchronous programming
+
+# Async function
+async func fetchData(url) {
+    return httpGet(url);
+}
+
+# Use async/await
+data = await fetchData("https://api.example.com");
+println("Data:", data);
+
+# Async sleep
+await asyncSleep(1000);
+println("Slept for 1 second");

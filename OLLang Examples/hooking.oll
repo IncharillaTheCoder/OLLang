@@ -1,0 +1,12 @@
+# Function hooking
+
+# Create JMP hook
+writeJmp(targetAddress, hookFunction);
+
+# Create CALL hook
+writeCall(targetAddress, hookFunction);
+
+# Thread manipulation
+thread = createThread(startAddress, parameter);
+suspendThread(thread);
+resumeThread(thread);

@@ -1,0 +1,18 @@
+# External process manipulation
+
+# Find and open process
+pid = findProcess("notepad.exe");
+handle = openProcess(pid, PROCESS_ALL_ACCESS);
+
+# Read process memory
+buffer = alloc(100);
+readProcessMemory(handle, 0x00400000, buffer, 100);
+
+# Write process memory
+writeProcessMemory(handle, 0x00400000, buffer, 100);
+
+# Close handle
+closeHandle(handle);
+
+# DLL injection
+injectDLL(pid, "C:\\my.dll");

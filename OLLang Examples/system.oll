@@ -1,0 +1,17 @@
+# System information
+
+# Get current process/thread IDs
+pid = getProcessId();
+tid = getThreadId();
+println("Process:", pid, "Thread:", tid);
+
+# System time
+time = getSystemTime();
+println("System time:", time);
+
+# Available memory
+mem = getAvailableMemory();
+println("Available memory:", mem, "bytes");
+
+# Sleep
+sleep(1000);

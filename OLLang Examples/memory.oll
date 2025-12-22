@@ -1,0 +1,15 @@
+# Memory allocation and manipulation
+
+# Create executable memory
+execPtr = alloc(1024);
+
+# Copy memory
+src = alloc(100);
+dest = alloc(100);
+memcpy(dest, src, 100);
+
+# Set memory
+memset(dest, 0, 100);
+
+# Create pointer from address
+ptr = createPointer(0x00400000);

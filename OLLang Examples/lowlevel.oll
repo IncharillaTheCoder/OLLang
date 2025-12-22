@@ -1,0 +1,17 @@
+# Low-level memory operations
+
+# Allocate memory
+ptr = alloc(1024);
+
+# Write to memory
+write(ptr, 0, 123, "i32");
+
+# Read from memory
+value = read(ptr, 0, "i32");
+println("Value:", value);
+
+# Free memory
+free(ptr);
+
+# System calls
+syscall(0x001, 1000);  # Sleep for 1 second

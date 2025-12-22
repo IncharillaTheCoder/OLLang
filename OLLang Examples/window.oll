@@ -1,0 +1,8 @@
+# Window manipulation
+
+# Find window by class/name
+hwnd = findWindow("Notepad", "Untitled - Notepad");
+
+# Get window process ID
+windowPid = getWindowProcessId(hwnd);
+println("Window PID:", windowPid);

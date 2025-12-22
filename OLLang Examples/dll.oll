@@ -1,0 +1,11 @@
+# DLL import and usage
+
+# Import Windows API functions
+MessageBox = importDLL("user32.dll", "MessageBoxA", "msgbox");
+GetCurrentProcessId = importDLL("kernel32.dll", "GetCurrentProcessId");
+
+# Use imported functions
+pid = GetCurrentProcessId();
+println("PID:", pid);
+
+result = msgbox(null, "Hello", "Title", 0);
