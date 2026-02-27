@@ -1,5 +1,0 @@
-# Generate UUID
-uuid1 = UUID();
-uuid2 = UUID();
-println("UUID 1:", uuid1);
-println("UUID 2:", uuid2);
