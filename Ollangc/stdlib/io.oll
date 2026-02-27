@@ -1,0 +1,241 @@
+/*
+Logging - logInfo, logSuccess, logWarn, logError, logDebug
+Interaction - prompt, confirm, menu
+Components - ProgressBar (update, increment), Spinner (tick, done, fail), Table (addRow, render)
+File - readLines, writeLines, appendLine
+Logger - setLevel, debug, info, warn, error
+*/
+
+func logInfo(msg) {
+    Console.color("Cyan");
+    print("[INFO] ");
+    Console.reset();
+    println(msg);
+}
+
+func logSuccess(msg) {
+    Console.color("Green");
+    print("[OK] ");
+    Console.reset();
+    println(msg);
+}
+
+func logWarn(msg) {
+    Console.color("Yellow");
+    print("[WARN] ");
+    Console.reset();
+    println(msg);
+}
+
+func logError(msg) {
+    Console.color("Red");
+    print("[ERROR] ");
+    Console.reset();
+    println(msg);
+}
+
+func logDebug(msg) {
+    Console.color("DarkGray");
+    print("[DEBUG] ");
+    Console.reset();
+    println(msg);
+}
+
+func prompt(message, defaultVal) {
+    if (defaultVal != null) {
+        print(message + " [" + str(defaultVal) + "]: ");
+    } else {
+        print(message + ": ");
+    }
+    var answer = input();
+    if (len(trim(answer)) == 0 && defaultVal != null) return str(defaultVal);
+    return answer;
+}
+
+func confirm(message) {
+    var answer = lower(prompt(message + " (y/n)", "n"));
+    return answer == "y" || answer == "yes";
+}
+
+func menu(title, options) {
+    println("\n" + title);
+    println(repeat("-", len(title)));
+    var i = 0;
+    while (i < len(options)) {
+        println("  " + str(i + 1) + ". " + options[i]);
+        i = i + 1;
+    }
+    var choice = num(prompt("Choice", "1"));
+    if (choice < 1 || choice > len(options)) return -1;
+    return choice - 1;
+}
+
+class ProgressBar {
+    func constructor(total, width) {
+        self.total = total;
+        self.current = 0;
+        self.width = width;
+        if (self.width == null) self.width = 40;
+        self.startTime = time();
+    }
+
+    func update(current) {
+        self.current = current;
+        var progress = current / self.total;
+        var filled = floor(self.width * progress);
+
+        var bar = "";
+        var i = 0;
+        while (i < self.width) {
+            if (i < filled) bar = bar + "█";
+            else if (i == filled) bar = bar + "▓";
+            else bar = bar + "░";
+            i = i + 1;
+        }
+
+        var pct = floor(progress * 100);
+        var elapsed = (time() - self.startTime) / 1000;
+        var eta = "";
+        if (progress > 0 && progress < 1) {
+            var remaining = elapsed / progress - elapsed;
+            eta = " ETA:" + str(floor(remaining)) + "s";
+        }
+
+        print("\r" + bar + " " + str(pct) + "%" + eta + "  ");
+        if (current >= self.total) println("");
+    }
+
+    func increment() {
+        self.current = self.current + 1;
+        self.update(self.current);
+    }
+}
+
+class Spinner {
+    func constructor(message) {
+        self.message = message;
+        if (self.message == null) self.message = "Loading";
+        self.frames = ["|", "/", "-", "\\"];
+        self.frame = 0;
+    }
+
+    func tick() {
+        print("\r" + self.frames[self.frame % len(self.frames)] + " " + self.message + "  ");
+        self.frame = self.frame + 1;
+    }
+
+    func done(message) {
+        if (message == null) message = "Done";
+        println("\r✓ " + message + "  ");
+    }
+
+    func fail(message) {
+        if (message == null) message = "Failed";
+        println("\r✗ " + message + "  ");
+    }
+}
+
+class Table {
+    func constructor(headers) {
+        self.headers = headers;
+        self.rows = [];
+    }
+
+    func addRow(row) {
+        push(self.rows, row);
+    }
+
+    func render() {
+        var widths = [];
+        var i = 0;
+        while (i < len(self.headers)) {
+            push(widths, len(str(self.headers[i])));
+            i = i + 1;
+        }
+
+        for (row in self.rows) {
+            i = 0;
+            while (i < len(row) && i < len(widths)) {
+                var cellLen = len(str(row[i]));
+                if (cellLen > widths[i]) widths[i] = cellLen;
+                i = i + 1;
+            }
+        }
+
+        var header = "";
+        var sep = "";
+        i = 0;
+        while (i < len(self.headers)) {
+            var w = widths[i] + 2;
+            header = header + " " + _padRight(str(self.headers[i]), w);
+            sep = sep + repeat("-", w + 1);
+            i = i + 1;
+        }
+        println(header);
+        println(sep);
+
+        for (row in self.rows) {
+            var line = "";
+            i = 0;
+            while (i < len(row) && i < len(widths)) {
+                var w = widths[i] + 2;
+                line = line + " " + _padRight(str(row[i]), w);
+                i = i + 1;
+            }
+            println(line);
+        }
+    }
+}
+
+func _padRight(s, width) {
+    while (len(s) < width) s = s + " ";
+    return s;
+}
+
+func repeat(s, n) {
+    var result = "";
+    var i = 0;
+    while (i < n) { result = result + s; i = i + 1; }
+    return result;
+}
+
+func readLines(path) {
+    var content = File.read(path);
+    return split(content, "\n");
+}
+
+func writeLines(path, lines) {
+    File.write(path, join(lines, "\n"));
+}
+
+func appendLine(path, line) {
+    File.append(path, line + "\n");
+}
+
+class Logger {
+    func constructor(path) {
+        self.path = path;
+        self.level = 0;
+    }
+
+    func setLevel(level) {
+        if (level == "debug") self.level = 0;
+        else if (level == "info") self.level = 1;
+        else if (level == "warn") self.level = 2;
+        else if (level == "error") self.level = 3;
+    }
+
+    func _write(tag, msg) {
+        var ts = str(time());
+        var line = ts + " [" + tag + "] " + msg;
+        if (self.path != null) {
+            File.append(self.path, line + "\n");
+        }
+        println(line);
+    }
+
+    func debug(msg) { if (self.level <= 0) self._write("DEBUG", msg); }
+    func info(msg) { if (self.level <= 1) self._write("INFO", msg); }
+    func warn(msg) { if (self.level <= 2) self._write("WARN", msg); }
+    func error(msg) { if (self.level <= 3) self._write("ERROR", msg); }
+}

@@ -1,0 +1,203 @@
+/*
+Framework - describe, it, beforeEach, afterEach, skip, report
+Assertions - assert, assertEqual, assertNotEqual, assertTrue, assertFalse, assertNull, assertNotNull, assertThrows, assertType, assertLength, assertContains, assertApprox
+*/
+
+var _suites = [];
+var _currentSuite = null;
+var _totalPasses = 0;
+var _totalFails = 0;
+var _totalSkipped = 0;
+
+func describe(name, fn) {
+    var suite = {
+        "name": name,
+        "tests": [],
+        "passes": 0,
+        "fails": 0,
+        "skipped": 0,
+        "beforeEach": null,
+        "afterEach": null
+    };
+    _currentSuite = suite;
+    push(_suites, suite);
+
+    Console.color("White");
+    println("\n  " + name);
+    Console.reset();
+
+    fn();
+    _currentSuite = null;
+}
+
+func beforeEach(fn) {
+    if (_currentSuite != null) _currentSuite["beforeEach"] = fn;
+}
+
+func afterEach(fn) {
+    if (_currentSuite != null) _currentSuite["afterEach"] = fn;
+}
+
+func it(name, fn) {
+    if (_currentSuite != null && _currentSuite["beforeEach"] != null) {
+        _currentSuite["beforeEach"]();
+    }
+
+    var start = time();
+    try {
+        fn();
+        var elapsed = time() - start;
+        _totalPasses = _totalPasses + 1;
+        if (_currentSuite != null) _currentSuite["passes"] = _currentSuite["passes"] + 1;
+
+        Console.color("Green");
+        print("    ✓ ");
+        Console.reset();
+        Console.color("DarkGray");
+        println(name + " (" + str(elapsed) + "ms)");
+        Console.reset();
+    } catch (e) {
+        var elapsed = time() - start;
+        _totalFails = _totalFails + 1;
+        if (_currentSuite != null) _currentSuite["fails"] = _currentSuite["fails"] + 1;
+
+        Console.color("Red");
+        print("    ✗ ");
+        println(name);
+        Console.color("DarkGray");
+        println("      " + str(e));
+        Console.reset();
+    }
+
+    if (_currentSuite != null && _currentSuite["afterEach"] != null) {
+        _currentSuite["afterEach"]();
+    }
+}
+
+func skip(name) {
+    _totalSkipped = _totalSkipped + 1;
+    if (_currentSuite != null) _currentSuite["skipped"] = _currentSuite["skipped"] + 1;
+
+    Console.color("Yellow");
+    print("    - ");
+    println(name + " (skipped)");
+    Console.reset();
+}
+
+func assert(condition, message) {
+    if (!condition) {
+        if (message == null) message = "Assertion failed";
+        throw message;
+    }
+}
+
+func assertEqual(actual, expected, message) {
+    if (actual != expected) {
+        var msg = "Expected '" + str(expected) + "' but got '" + str(actual) + "'";
+        if (message != null) msg = message + ": " + msg;
+        throw msg;
+    }
+}
+
+func assertNotEqual(actual, expected, message) {
+    if (actual == expected) {
+        var msg = "Expected values to differ, but both are '" + str(actual) + "'";
+        if (message != null) msg = message + ": " + msg;
+        throw msg;
+    }
+}
+
+func assertTrue(val, message) {
+    if (!val) throw (message != null ? message : "Expected true, got false");
+}
+
+func assertFalse(val, message) {
+    if (val) throw (message != null ? message : "Expected false, got true");
+}
+
+func assertNull(val, message) {
+    if (val != null) throw (message != null ? message : "Expected null, got '" + str(val) + "'");
+}
+
+func assertNotNull(val, message) {
+    if (val == null) throw (message != null ? message : "Expected non-null value");
+}
+
+func assertThrows(fn, message) {
+    try {
+        fn();
+        throw (message != null ? message : "Expected exception but none was thrown");
+    } catch (e) {
+        if (contains(str(e), "Expected exception")) throw e;
+    }
+}
+
+func assertType(val, expectedType, message) {
+    var actual = type(val);
+    if (actual != expectedType) {
+        var msg = "Expected type '" + expectedType + "' but got '" + actual + "'";
+        if (message != null) msg = message + ": " + msg;
+        throw msg;
+    }
+}
+
+func assertLength(val, expectedLen, message) {
+    var actual = len(val);
+    if (actual != expectedLen) {
+        var msg = "Expected length " + str(expectedLen) + " but got " + str(actual);
+        if (message != null) msg = message + ": " + msg;
+        throw msg;
+    }
+}
+
+func assertContains(haystack, needle, message) {
+    if (type(haystack) == "array") {
+        for (item in haystack) {
+            if (item == needle) return;
+        }
+        throw (message != null ? message : "Array does not contain '" + str(needle) + "'");
+    }
+    if (!contains(str(haystack), str(needle))) {
+        throw (message != null ? message : "'" + str(haystack) + "' does not contain '" + str(needle) + "'");
+    }
+}
+
+func assertApprox(actual, expected, tolerance, message) {
+    if (tolerance == null) tolerance = 0.001;
+    var diff = actual - expected;
+    if (diff < 0) diff = -diff;
+    if (diff > tolerance) {
+        var msg = "Expected ~" + str(expected) + " (±" + str(tolerance) + ") but got " + str(actual);
+        if (message != null) msg = message + ": " + msg;
+        throw msg;
+    }
+}
+
+func report() {
+    var total = _totalPasses + _totalFails + _totalSkipped;
+
+    println("\n  " + str(total) + " tests");
+
+    if (_totalPasses > 0) {
+        Console.color("Green");
+        println("  " + str(_totalPasses) + " passing");
+        Console.reset();
+    }
+
+    if (_totalFails > 0) {
+        Console.color("Red");
+        println("  " + str(_totalFails) + " failing");
+        Console.reset();
+    }
+
+    if (_totalSkipped > 0) {
+        Console.color("Yellow");
+        println("  " + str(_totalSkipped) + " skipped");
+        Console.reset();
+    }
+
+    println("");
+
+    if (_totalFails > 0) return false;
+    return true;
+}

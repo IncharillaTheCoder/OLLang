@@ -1,0 +1,126 @@
+/*
+Window - window, closeWindow, isAlive, waitForClose
+Widgets - button, label, textInput, textArea, checkbox, dropdown, slider, progress, image, panel, listbox, tabs
+Events - onClick, onChange, onEnter, onSelect
+Properties - setText, getText, setValue, getValue, setVisible, setEnabled, setBg, setFg, setSize, setPos
+Hierarchy - addTo, removeWidget, clearWidgets
+Dialogs - msgbox, confirm, filePicker, colorPicker
+Timing - guiTimer
+*/
+
+func window(title, width, height, iconPath) {
+    if (width == null) width = 800;
+    if (height == null) height = 600;
+    if (iconPath != null) {
+        return Gui.window(title, width, height, "icon", iconPath);
+    }
+    return Gui.window(title, width, height);
+}
+
+func button(id, text, x, y) {
+    if (x != null && y != null)
+        return Gui.button(id, text, "x", x, "y", y);
+    return Gui.button(id, text);
+}
+
+func label(id, text, x, y) {
+    if (x != null && y != null)
+        return Gui.label(id, text, "x", x, "y", y);
+    return Gui.label(id, text);
+}
+
+func textInput(id, placeholder, x, y) {
+    if (x != null && y != null)
+        return Gui.input(id, placeholder, "x", x, "y", y);
+    return Gui.input(id, placeholder);
+}
+
+func textArea(id, text, x, y, w, h) {
+    if (x != null && y != null)
+        return Gui.textarea(id, text, "x", x, "y", y, "w", w, "h", h);
+    return Gui.textarea(id, text);
+}
+
+func checkbox(id, text, x, y) {
+    if (x != null && y != null)
+        return Gui.checkbox(id, text, "x", x, "y", y);
+    return Gui.checkbox(id, text);
+}
+
+func dropdown(id, items, x, y) {
+    if (x != null && y != null)
+        return Gui.dropdown(id, items, "x", x, "y", y);
+    return Gui.dropdown(id, items);
+}
+
+func slider(id, min, max, x, y) {
+    if (x != null && y != null)
+        return Gui.slider(id, min, max, "x", x, "y", y);
+    return Gui.slider(id, min, max);
+}
+
+func progress(id, max, x, y) {
+    if (x != null && y != null)
+        return Gui.progress(id, max, "x", x, "y", y);
+    return Gui.progress(id, max);
+}
+
+func image(id, path, x, y, w, h) {
+    if (x != null && y != null)
+        return Gui.image(id, path, "x", x, "y", y, "w", w, "h", h);
+    return Gui.image(id, path);
+}
+
+func panel(id, x, y, w, h) {
+    if (x != null && y != null)
+        return Gui.panel(id, "x", x, "y", y, "w", w, "h", h);
+    return Gui.panel(id);
+}
+
+func listbox(id, items, x, y) {
+    if (x != null && y != null)
+        return Gui.listbox(id, items, "x", x, "y", y);
+    return Gui.listbox(id, items);
+}
+
+func tabs(id, names, x, y, w, h) {
+    if (x != null && y != null)
+        return Gui.tabs(id, names, "x", x, "y", y, "w", w, "h", h);
+    return Gui.tabs(id, names);
+}
+
+func onClick(id, handler) { Gui.on(id, "click", handler); }
+func onChange(id, handler) { Gui.on(id, "change", handler); }
+func onEnter(id, handler) { Gui.on(id, "enter", handler); }
+func onSelect(id, handler) { Gui.on(id, "select", handler); }
+
+func setText(id, text) { Gui.set(id, "text", text); }
+func getText(id) { return Gui.get(id, "text"); }
+func setValue(id, val) { Gui.set(id, "value", val); }
+func getValue(id) { return Gui.get(id, "value"); }
+func setVisible(id, v) { Gui.set(id, "visible", v); }
+func setEnabled(id, v) { Gui.set(id, "enabled", v); }
+func setBg(id, color) { Gui.set(id, "bg", color); }
+func setFg(id, color) { Gui.set(id, "fg", color); }
+func setSize(id, w, h) {
+    Gui.set(id, "w", w);
+    Gui.set(id, "h", h);
+}
+func setPos(id, x, y) {
+    Gui.set(id, "x", x);
+    Gui.set(id, "y", y);
+}
+
+func addTo(parentId, childId) { Gui.addTo(parentId, childId); }
+func removeWidget(id) { Gui.remove(id); }
+func clearWidgets(id) { Gui.clear(id); }
+
+func msgbox(text, title, type) { return Gui.msgbox(text, title, type); }
+func confirm(text, title) { return Gui.msgbox(text, title, "question"); }
+func filePicker(filter) { return Gui.filePicker(filter); }
+func colorPicker() { return Gui.colorPicker(); }
+
+func guiTimer(ms, handler) { Gui.timer(ms, handler); }
+func closeWindow() { Gui.close(); }
+func isAlive() { return Gui.alive(); }
+func waitForClose() { Gui.wait(); }

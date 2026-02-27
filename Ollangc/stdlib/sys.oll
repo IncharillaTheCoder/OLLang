@@ -1,0 +1,194 @@
+/*
+Performance - benchmark, compare, profile
+Flux - retry, memoize, throttle, once, pipe
+Events - EventEmitter (on, emit, off)
+*/
+
+func benchmark(name, fn, iterations) {
+    if (iterations == null) iterations = 100;
+
+    var warmup = 3;
+    if (warmup > iterations) warmup = iterations;
+    var w = 0;
+    while (w < warmup) { fn(); w = w + 1; }
+
+    var times = [];
+    var i = 0;
+    while (i < iterations) {
+        var start = time();
+        fn();
+        var elapsed = time() - start;
+        push(times, elapsed);
+        i = i + 1;
+    }
+
+    var total = 0;
+    var minTime = times[0];
+    var maxTime = times[0];
+    for (t in times) {
+        total = total + t;
+        if (t < minTime) minTime = t;
+        if (t > maxTime) maxTime = t;
+    }
+    var avg = total / iterations;
+
+    var variance = 0;
+    for (t in times) variance = variance + (t - avg) * (t - avg);
+    variance = variance / iterations;
+    var stddev = sqrt(variance);
+    var sorted = sort(times);
+    var p50 = sorted[floor(len(sorted) * 0.5)];
+    var p95 = sorted[floor(len(sorted) * 0.95)];
+    var p99 = sorted[floor(len(sorted) * 0.99)];
+
+    var opsPerSec = 0;
+    if (avg > 0) opsPerSec = floor(1000 / avg);
+
+    println("Benchmark: " + name);
+    println("  Iterations: " + str(iterations));
+    println("  Total:      " + str(floor(total)) + "ms");
+    println("  Average:    " + str(floor(avg * 100) / 100) + "ms");
+    println("  Min:        " + str(floor(minTime * 100) / 100) + "ms");
+    println("  Max:        " + str(floor(maxTime * 100) / 100) + "ms");
+    println("  Stddev:     " + str(floor(stddev * 100) / 100) + "ms");
+    println("  p50:        " + str(floor(p50 * 100) / 100) + "ms");
+    println("  p95:        " + str(floor(p95 * 100) / 100) + "ms");
+    println("  p99:        " + str(floor(p99 * 100) / 100) + "ms");
+    println("  Ops/sec:    " + str(opsPerSec));
+
+    return {
+        "name": name,
+        "iterations": iterations,
+        "total": total,
+        "avg": avg,
+        "min": minTime,
+        "max": maxTime,
+        "stddev": stddev,
+        "p50": p50,
+        "p95": p95,
+        "p99": p99,
+        "opsPerSec": opsPerSec
+    };
+}
+
+func compare(name1, fn1, name2, fn2, iterations) {
+    if (iterations == null) iterations = 100;
+    println("=== Comparison ===");
+    var r1 = benchmark(name1, fn1, iterations);
+    println("");
+    var r2 = benchmark(name2, fn2, iterations);
+    println("");
+
+    if (r1["avg"] < r2["avg"]) {
+        var speedup = floor(r2["avg"] / r1["avg"] * 100) / 100;
+        println("Winner: " + name1 + " (" + str(speedup) + "x faster)");
+    } else {
+        var speedup = floor(r1["avg"] / r2["avg"] * 100) / 100;
+        println("Winner: " + name2 + " (" + str(speedup) + "x faster)");
+    }
+}
+
+func profile(name, fn) {
+    var startMem = Utils.memoryUsage();
+    var start = time();
+    var result = fn();
+    var elapsed = time() - start;
+    var endMem = Utils.memoryUsage();
+    var memDelta = endMem - startMem;
+
+    println("Profile: " + name);
+    println("  Time:   " + str(floor(elapsed * 100) / 100) + "ms");
+    if (memDelta > 1048576) {
+        println("  Memory: " + str(floor(memDelta / 1048576 * 100) / 100) + " MB");
+    } else if (memDelta > 1024) {
+        println("  Memory: " + str(floor(memDelta / 1024 * 100) / 100) + " KB");
+    } else {
+        println("  Memory: " + str(memDelta) + " B");
+    }
+
+    return result;
+}
+
+func retry(fn, maxAttempts, delayMs) {
+    if (maxAttempts == null) maxAttempts = 3;
+    if (delayMs == null) delayMs = 100;
+    var attempts = 0;
+    while (attempts < maxAttempts) {
+        try {
+            return fn();
+        } catch (e) {
+            attempts = attempts + 1;
+            if (attempts >= maxAttempts) throw "Failed after " + str(maxAttempts) + " attempts: " + str(e);
+            sleep(delayMs);
+            delayMs = delayMs * 2;
+        }
+    }
+}
+
+func memoize(fn) {
+    var cache = {};
+    return func(arg) {
+        var key = str(arg);
+        if (has(cache, key)) return cache[key];
+        var result = fn(arg);
+        cache[key] = result;
+        return result;
+    };
+}
+
+func throttle(fn, delayMs) {
+    var lastCall = 0;
+    return func() {
+        var now = time();
+        if (now - lastCall >= delayMs) {
+            lastCall = now;
+            return fn();
+        }
+        return null;
+    };
+}
+
+func once(fn) {
+    var called = false;
+    var result = null;
+    return func() {
+        if (!called) {
+            called = true;
+            result = fn();
+        }
+        return result;
+    };
+}
+
+func pipe(fns) {
+    return func(input) {
+        var val = input;
+        for (fn in fns) val = fn(val);
+        return val;
+    };
+}
+
+class EventEmitter {
+    func constructor() {
+        self._handlers = {};
+    }
+
+    func on(event, handler) {
+        if (!has(self._handlers, event)) self._handlers[event] = [];
+        push(self._handlers[event], handler);
+    }
+
+    func emit(event, data) {
+        if (has(self._handlers, event)) {
+            for (handler in self._handlers[event]) {
+                handler(data);
+            }
+        }
+    }
+
+    func off(event) {
+        if (has(self._handlers, event)) {
+            self._handlers[event] = [];
+        }
+    }
+}

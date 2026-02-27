@@ -1,0 +1,203 @@
+/*
+Arithmetic - range, gcd, lcm, factorial, fib
+Number Theory - isPrime, primes
+Statistics - sum, avg, median, variance, stddev
+Trigonometry - toRadians, toDegrees, acos, distance
+Functions - map2d, smoothstep, choose, clamp
+Random - Random (next, nextFloat, pick, shuffle)
+*/
+
+func range(start, end, step) {
+    var res = [];
+    if (step == null) step = 1;
+    if (step > 0) {
+        var i = start;
+        while (i < end) { push(res, i); i = i + step; }
+    } else {
+        var i = start;
+        while (i > end) { push(res, i); i = i + step; }
+    }
+    return res;
+}
+
+func gcd(a, b) {
+    if (a < 0) a = -a;
+    if (b < 0) b = -b;
+    while (b != 0) {
+        var t = b;
+        b = a % t;
+        a = t;
+    }
+    return a;
+}
+
+func lcm(a, b) {
+    if (a == 0 || b == 0) return 0;
+    var g = gcd(a, b);
+    return (a / g) * b;
+}
+
+func factorial(n) {
+    if (n <= 1) return 1;
+    var result = 1;
+    var i = 2;
+    while (i <= n) {
+        result = result * i;
+        i = i + 1;
+    }
+    return result;
+}
+
+func fib(n) {
+    if (n <= 0) return 0;
+    if (n == 1) return 1;
+    var a = 0;
+    var b = 1;
+    var i = 2;
+    while (i <= n) {
+        var temp = a + b;
+        a = b;
+        b = temp;
+        i = i + 1;
+    }
+    return b;
+}
+
+func isPrime(n) {
+    if (n < 2) return false;
+    if (n < 4) return true;
+    if (n % 2 == 0 || n % 3 == 0) return false;
+    var i = 5;
+    while (i * i <= n) {
+        if (n % i == 0 || n % (i + 2) == 0) return false;
+        i = i + 6;
+    }
+    return true;
+}
+
+func primes(limit) {
+    var sieve = fill(limit + 1, true);
+    sieve[0] = false;
+    if (limit >= 1) sieve[1] = false;
+    var i = 2;
+    while (i * i <= limit) {
+        if (sieve[i]) {
+            var j = i * i;
+            while (j <= limit) {
+                sieve[j] = false;
+                j = j + i;
+            }
+        }
+        i = i + 1;
+    }
+    var result = [];
+    var k = 2;
+    while (k <= limit) {
+        if (sieve[k]) push(result, k);
+        k = k + 1;
+    }
+    return result;
+}
+
+func sum(arr) {
+    var total = 0;
+    for (x in arr) total = total + x;
+    return total;
+}
+
+func avg(arr) {
+    if (len(arr) == 0) return 0;
+    return sum(arr) / len(arr);
+}
+
+func median(arr) {
+    var s = sort(arr);
+    var n = len(s);
+    if (n == 0) return 0;
+    if (n % 2 == 1) return s[floor(n / 2)];
+    var mid = n / 2;
+    return (s[mid - 1] + s[mid]) / 2;
+}
+
+func variance(arr) {
+    var m = avg(arr);
+    var total = 0;
+    for (x in arr) total = total + (x - m) * (x - m);
+    return total / len(arr);
+}
+
+func stddev(arr) {
+    return sqrt(variance(arr));
+}
+
+func toRadians(deg) { return deg * 3.141592653589793 / 180; }
+func toDegrees(rad) { return rad * 180 / 3.141592653589793; }
+
+func map2d(val, inMin, inMax, outMin, outMax) {
+    return (val - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
+}
+
+func smoothstep(edge0, edge1, x) {
+    var t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+    return t * t * (3 - 2 * t);
+}
+
+func distance(x1, y1, x2, y2) {
+    var dx = x2 - x1;
+    var dy = y2 - y1;
+    return sqrt(dx * dx + dy * dy);
+}
+
+func choose(n, k) {
+    if (k < 0 || k > n) return 0;
+    if (k == 0 || k == n) return 1;
+    if (k > n - k) k = n - k;
+    var result = 1;
+    var i = 0;
+    while (i < k) {
+        result = result * (n - i) / (i + 1);
+        i = i + 1;
+    }
+    return result;
+}
+
+class Random {
+    func constructor(seed) {
+        if (seed == null) seed = time();
+        self.seed = seed;
+        self.state = seed;
+    }
+
+    func next(lo, hi) {
+        self.state = self.state ^ (self.state * 8192);
+        self.state = self.state ^ floor(self.state / 131072);
+        self.state = self.state ^ (self.state * 32);
+        if (self.state < 0) self.state = -self.state;
+
+        if (lo == null) return self.state;
+        if (hi == null) return self.state % lo;
+        return lo + (self.state % (hi - lo));
+    }
+
+    func nextFloat() {
+        return self.next(0, 1000000) / 1000000;
+    }
+
+    func pick(arr) {
+        return arr[self.next(0, len(arr))];
+    }
+
+    func shuffle(arr) {
+        var res = [];
+        for (item in arr) push(res, item);
+        var i = len(res) - 1;
+        while (i > 0) {
+            var j = self.next(0, i + 1);
+            var temp = res[i];
+            res[i] = res[j];
+            res[j] = temp;
+            i = i - 1;
+        }
+        return res;
+    }
+}

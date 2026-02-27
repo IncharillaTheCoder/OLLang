@@ -1,0 +1,130 @@
+/*
+Format - jsonPretty
+Logic - jsonMerge, jsonGet, jsonSet, jsonFlatten, jsonClone
+*/
+
+func jsonPretty(obj, indent) {
+    if (indent == null) indent = 0;
+    var pad = "";
+    var i = 0;
+    while (i < indent) { pad = pad + "  "; i = i + 1; }
+    var innerPad = pad + "  ";
+
+    if (obj == null) return "null";
+
+    var t = type(obj);
+    if (t == "number") return str(obj);
+    if (t == "boolean") {
+        if (obj) return "true";
+        return "false";
+    }
+    if (t == "string") return _jsonEscapeStr(obj);
+
+    if (t == "array") {
+        if (len(obj) == 0) return "[]";
+        var parts = [];
+        for (item in obj) {
+            push(parts, innerPad + jsonPretty(item, indent + 1));
+        }
+        return "[\n" + join(parts, ",\n") + "\n" + pad + "]";
+    }
+
+    if (t == "dict") {
+        var k = keys(obj);
+        if (len(k) == 0) return "{}";
+        var parts = [];
+        for (key in k) {
+            var val = jsonPretty(obj[key], indent + 1);
+            push(parts, innerPad + _jsonEscapeStr(str(key)) + ": " + val);
+        }
+        return "{\n" + join(parts, ",\n") + "\n" + pad + "}";
+    }
+
+    return str(obj);
+}
+
+func _jsonEscapeStr(s) {
+    var result = "\"";
+    var i = 0;
+    while (i < len(s)) {
+        var ch = substring(s, i, 1);
+        if (ch == "\"") result = result + "\\\"";
+        else if (ch == "\\") result = result + "\\\\";
+        else if (ch == "\n") result = result + "\\n";
+        else if (ch == "\r") result = result + "\\r";
+        else if (ch == "	") result = result + "\\t";
+        else result = result + ch;
+        i = i + 1;
+    }
+    return result + "\"";
+}
+
+func jsonMerge(a, b) {
+    var result = {};
+    var aKeys = keys(a);
+    for (k in aKeys) result[k] = a[k];
+    var bKeys = keys(b);
+    for (k in bKeys) {
+        if (type(a[k]) == "dict" && type(b[k]) == "dict") {
+            result[k] = jsonMerge(a[k], b[k]);
+        } else {
+            result[k] = b[k];
+        }
+    }
+    return result;
+}
+
+func jsonGet(obj, path) {
+    var parts = split(str(path), ".");
+    var current = obj;
+    for (part in parts) {
+        if (current == null) return null;
+        if (type(current) == "dict") {
+            current = current[part];
+        } else if (type(current) == "array") {
+            current = current[num(part)];
+        } else {
+            return null;
+        }
+    }
+    return current;
+}
+
+func jsonSet(obj, path, value) {
+    var parts = split(str(path), ".");
+    var current = obj;
+    var i = 0;
+    while (i < len(parts) - 1) {
+        var key = parts[i];
+        if (type(current[key]) != "dict") {
+            current[key] = {};
+        }
+        current = current[key];
+        i = i + 1;
+    }
+    current[parts[len(parts) - 1]] = value;
+    return obj;
+}
+
+func jsonFlatten(obj, prefix) {
+    if (prefix == null) prefix = "";
+    var result = {};
+    var k = keys(obj);
+    for (key in k) {
+        var fullKey = key;
+        if (len(prefix) > 0) fullKey = prefix + "." + key;
+
+        if (type(obj[key]) == "dict") {
+            var sub = jsonFlatten(obj[key], fullKey);
+            var subKeys = keys(sub);
+            for (sk in subKeys) result[sk] = sub[sk];
+        } else {
+            result[fullKey] = obj[key];
+        }
+    }
+    return result;
+}
+
+func jsonClone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+}

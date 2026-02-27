@@ -1,0 +1,299 @@
+/*
+Vector2 - add, sub, mul, div, length, lengthSq, normalized, dot, cross, distance, angle, angleTo, rotate, reflect, clamp, abs, negate, floor, ceil, round, min, max, moveToward, equals, toArray, toString
+Vector3 - add, sub, mul, div, length, lengthSq, normalized, dot, cross, distance, reflect, project, clamp, abs, negate, floor, moveToward, angleBetween, equals, toArray, toString, lerp, slerp
+AABB - contains, intersects, center, size, expand, toString
+Math - acos, radians, degrees
+*/
+
+class Vector2 {
+    func constructor(x, y) {
+        if (x == null) x = 0;
+        if (y == null) y = 0;
+        self.x = x;
+        self.y = y;
+    }
+
+    func add(other) { return new Vector2(self.x + other.x, self.y + other.y); }
+    func sub(other) { return new Vector2(self.x - other.x, self.y - other.y); }
+
+    func mul(n) {
+        if (type(n) == "number") return new Vector2(self.x * n, self.y * n);
+        return new Vector2(self.x * n.x, self.y * n.y);
+    }
+
+    func div(n) {
+        if (type(n) == "number") return new Vector2(self.x / n, self.y / n);
+        return new Vector2(self.x / n.x, self.y / n.y);
+    }
+
+    func length() { return sqrt(self.x * self.x + self.y * self.y); }
+    func lengthSq() { return self.x * self.x + self.y * self.y; }
+
+    func normalized() {
+        var l = self.length();
+        if (l == 0) return new Vector2(0, 0);
+        return self.div(l);
+    }
+
+    func dot(other) { return self.x * other.x + self.y * other.y; }
+    func cross(other) { return self.x * other.y - self.y * other.x; }
+    func distance(other) { return self.sub(other).length(); }
+
+    func angle() { return atan2(self.y, self.x); }
+
+    func angleTo(other) {
+        return atan2(other.y - self.y, other.x - self.x);
+    }
+
+    func rotate(radians) {
+        var cosA = cos(radians);
+        var sinA = sin(radians);
+        return new Vector2(
+            self.x * cosA - self.y * sinA,
+            self.x * sinA + self.y * cosA
+        );
+    }
+
+    func reflect(normal) {
+        var d = 2 * self.dot(normal);
+        return new Vector2(self.x - d * normal.x, self.y - d * normal.y);
+    }
+
+    func clamp(minVec, maxVec) {
+        var cx = self.x;
+        var cy = self.y;
+        if (cx < minVec.x) cx = minVec.x;
+        if (cx > maxVec.x) cx = maxVec.x;
+        if (cy < minVec.y) cy = minVec.y;
+        if (cy > maxVec.y) cy = maxVec.y;
+        return new Vector2(cx, cy);
+    }
+
+    func abs() { return new Vector2(_abs(self.x), _abs(self.y)); }
+    func negate() { return new Vector2(-self.x, -self.y); }
+    func floor() { return new Vector2(floor(self.x), floor(self.y)); }
+    func ceil() { return new Vector2(ceil(self.x), ceil(self.y)); }
+    func round() { return new Vector2(round(self.x), round(self.y)); }
+
+    func min(other) {
+        return new Vector2(
+            _min(self.x, other.x),
+            _min(self.y, other.y)
+        );
+    }
+
+    func max(other) {
+        return new Vector2(
+            _max(self.x, other.x),
+            _max(self.y, other.y)
+        );
+    }
+
+    func moveToward(target, maxDist) {
+        var diff = target.sub(self);
+        var dist = diff.length();
+        if (dist <= maxDist || dist == 0) return target;
+        return self.add(diff.div(dist).mul(maxDist));
+    }
+
+    func equals(other) {
+        return self.x == other.x && self.y == other.y;
+    }
+
+    func toArray() { return [self.x, self.y]; }
+
+    func toString() {
+        return "Vector2(" + str(self.x) + ", " + str(self.y) + ")";
+    }
+
+    static func zero() { return new Vector2(0, 0); }
+    static func one() { return new Vector2(1, 1); }
+    static func up() { return new Vector2(0, 1); }
+    static func down() { return new Vector2(0, -1); }
+    static func left() { return new Vector2(-1, 0); }
+    static func right() { return new Vector2(1, 0); }
+
+    static func lerp(a, b, t) {
+        return new Vector2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+    }
+
+    static func fromAngle(radians, length) {
+        if (length == null) length = 1;
+        return new Vector2(cos(radians) * length, sin(radians) * length);
+    }
+
+    static func random() {
+        var angle = random(0, 628318) / 100000;
+        return Vector2.fromAngle(angle);
+    }
+}
+
+class Vector3 {
+    func constructor(x, y, z) {
+        if (x == null) x = 0;
+        if (y == null) y = 0;
+        if (z == null) z = 0;
+        self.x = x;
+        self.y = y;
+        self.z = z;
+    }
+
+    func add(other) { return new Vector3(self.x + other.x, self.y + other.y, self.z + other.z); }
+    func sub(other) { return new Vector3(self.x - other.x, self.y - other.y, self.z - other.z); }
+
+    func mul(n) {
+        if (type(n) == "number") return new Vector3(self.x * n, self.y * n, self.z * n);
+        return new Vector3(self.x * n.x, self.y * n.y, self.z * n.z);
+    }
+
+    func div(n) {
+        if (type(n) == "number") return new Vector3(self.x / n, self.y / n, self.z / n);
+        return new Vector3(self.x / n.x, self.y / n.y, self.z / n.z);
+    }
+
+    func length() { return sqrt(self.x * self.x + self.y * self.y + self.z * self.z); }
+    func lengthSq() { return self.x * self.x + self.y * self.y + self.z * self.z; }
+
+    func normalized() {
+        var l = self.length();
+        if (l == 0) return new Vector3(0, 0, 0);
+        return self.div(l);
+    }
+
+    func dot(other) { return self.x * other.x + self.y * other.y + self.z * other.z; }
+
+    func cross(other) {
+        return new Vector3(
+            self.y * other.z - self.z * other.y,
+            self.z * other.x - self.x * other.z,
+            self.x * other.y - self.y * other.x
+        );
+    }
+
+    func distance(other) { return self.sub(other).length(); }
+
+    func reflect(normal) {
+        var d = 2 * self.dot(normal);
+        return new Vector3(self.x - d * normal.x, self.y - d * normal.y, self.z - d * normal.z);
+    }
+
+    func project(onto) {
+        var dp = self.dot(onto);
+        var ll = onto.lengthSq();
+        if (ll == 0) return new Vector3(0, 0, 0);
+        var scale = dp / ll;
+        return onto.mul(scale);
+    }
+
+    func clamp(minVec, maxVec) {
+        return new Vector3(
+            _clampVal(self.x, minVec.x, maxVec.x),
+            _clampVal(self.y, minVec.y, maxVec.y),
+            _clampVal(self.z, minVec.z, maxVec.z)
+        );
+    }
+
+    func abs() { return new Vector3(_abs(self.x), _abs(self.y), _abs(self.z)); }
+    func negate() { return new Vector3(-self.x, -self.y, -self.z); }
+    func floor() { return new Vector3(floor(self.x), floor(self.y), floor(self.z)); }
+
+    func moveToward(target, maxDist) {
+        var diff = target.sub(self);
+        var dist = diff.length();
+        if (dist <= maxDist || dist == 0) return target;
+        return self.add(diff.div(dist).mul(maxDist));
+    }
+
+    func angleBetween(other) {
+        var d = self.dot(other);
+        var la = self.length();
+        var lb = other.length();
+        if (la == 0 || lb == 0) return 0;
+        return acos(d / (la * lb));
+    }
+
+    func equals(other) {
+        return self.x == other.x && self.y == other.y && self.z == other.z;
+    }
+
+    func toArray() { return [self.x, self.y, self.z]; }
+
+    func toString() {
+        return "Vector3(" + str(self.x) + ", " + str(self.y) + ", " + str(self.z) + ")";
+    }
+
+    static func zero() { return new Vector3(0, 0, 0); }
+    static func one() { return new Vector3(1, 1, 1); }
+    static func up() { return new Vector3(0, 1, 0); }
+    static func down() { return new Vector3(0, -1, 0); }
+    static func left() { return new Vector3(-1, 0, 0); }
+    static func right() { return new Vector3(1, 0, 0); }
+    static func forward() { return new Vector3(0, 0, 1); }
+    static func back() { return new Vector3(0, 0, -1); }
+
+    static func lerp(a, b, t) {
+        return new Vector3(
+            a.x + (b.x - a.x) * t,
+            a.y + (b.y - a.y) * t,
+            a.z + (b.z - a.z) * t
+        );
+    }
+
+    static func slerp(a, b, t) {
+        var d = a.dot(b);
+        if (d < 0) { b = b.negate(); d = -d; }
+        if (d > 0.9995) return Vector3.lerp(a, b, t).normalized();
+
+        var theta = acos(d);
+        var sinTheta = sin(theta);
+        var wa = sin((1 - t) * theta) / sinTheta;
+        var wb = sin(t * theta) / sinTheta;
+        return a.mul(wa).add(b.mul(wb));
+    }
+}
+
+class AABB {
+    func constructor(min, max) {
+        self.min = min;
+        self.max = max;
+    }
+
+    func contains(point) {
+        return point.x >= self.min.x && point.x <= self.max.x &&
+               point.y >= self.min.y && point.y <= self.max.y &&
+               point.z >= self.min.z && point.z <= self.max.z;
+    }
+
+    func intersects(other) {
+        return self.min.x <= other.max.x && self.max.x >= other.min.x &&
+               self.min.y <= other.max.y && self.max.y >= other.min.y &&
+               self.min.z <= other.max.z && self.max.z >= other.min.z;
+    }
+
+    func center() {
+        return new Vector3(
+            (self.min.x + self.max.x) / 2,
+            (self.min.y + self.max.y) / 2,
+            (self.min.z + self.max.z) / 2
+        );
+    }
+
+    func size() {
+        return self.max.sub(self.min);
+    }
+
+    func expand(point) {
+        return new AABB(self.min.min(point), self.max.max(point));
+    }
+
+    func toString() {
+        return "AABB(" + self.min.toString() + " -> " + self.max.toString() + ")";
+    }
+}
+
+func _abs(n) { if (n < 0) return -n; return n; }
+func _min(a, b) { if (a < b) return a; return b; }
+func _max(a, b) { if (a > b) return a; return b; }
+func _clampVal(v, lo, hi) { if (v < lo) return lo; if (v > hi) return hi; return v; }
+
+func acos(x) { return atan2(sqrt(1 - x * x), x); }

@@ -1,0 +1,121 @@
+/*
+Manipulation - normalize, joinPath, relative, withExtension
+Properties - dirname, basename, extname, stem, splitPath, isAbsolute
+*/
+
+func normalize(path) {
+    var parts = split(replace(path, "\\", "/"), "/");
+    var result = [];
+    for (part in parts) {
+        if (part == "..") {
+            if (len(result) > 0 && result[len(result) - 1] != "..") {
+                pop(result);
+            } else {
+                push(result, part);
+            }
+        } else if (part != "." && len(part) > 0) {
+            push(result, part);
+        }
+    }
+    var normalized = join(result, "/");
+    if (startsWith(path, "/")) normalized = "/" + normalized;
+    return normalized;
+}
+
+func dirname(path) {
+    var norm = replace(path, "\\", "/");
+    var lastSlash = -1;
+    var i = 0;
+    while (i < len(norm)) {
+        if (substring(norm, i, 1) == "/") lastSlash = i;
+        i = i + 1;
+    }
+    if (lastSlash < 0) return ".";
+    if (lastSlash == 0) return "/";
+    return substring(norm, 0, lastSlash);
+}
+
+func basename(path, ext) {
+    var norm = replace(path, "\\", "/");
+    var lastSlash = -1;
+    var i = 0;
+    while (i < len(norm)) {
+        if (substring(norm, i, 1) == "/") lastSlash = i;
+        i = i + 1;
+    }
+    var name = norm;
+    if (lastSlash >= 0) name = substring(norm, lastSlash + 1);
+    if (ext != null && endsWith(name, ext)) {
+        name = substring(name, 0, len(name) - len(ext));
+    }
+    return name;
+}
+
+func extname(path) {
+    var name = basename(path, null);
+    var lastDot = -1;
+    var i = 0;
+    while (i < len(name)) {
+        if (substring(name, i, 1) == ".") lastDot = i;
+        i = i + 1;
+    }
+    if (lastDot <= 0) return "";
+    return substring(name, lastDot);
+}
+
+func stem(path) {
+    var ext = extname(path);
+    var base = basename(path, null);
+    if (len(ext) > 0) return substring(base, 0, len(base) - len(ext));
+    return base;
+}
+
+func joinPath(parts) {
+    if (type(parts) != "array") return str(parts);
+    var result = join(parts, "/");
+    return normalize(result);
+}
+
+func isAbsolute(path) {
+    if (len(path) == 0) return false;
+    if (substring(path, 0, 1) == "/" || substring(path, 0, 1) == "\\") return true;
+    if (len(path) >= 2 && substring(path, 1, 1) == ":") return true;
+    return false;
+}
+
+func relative(from, to) {
+    var fromParts = split(normalize(from), "/");
+    var toParts = split(normalize(to), "/");
+
+    var common = 0;
+    while (common < len(fromParts) && common < len(toParts) && fromParts[common] == toParts[common]) {
+        common = common + 1;
+    }
+
+    var result = [];
+    var ups = len(fromParts) - common;
+    var i = 0;
+    while (i < ups) { push(result, ".."); i = i + 1; }
+    i = common;
+    while (i < len(toParts)) { push(result, toParts[i]); i = i + 1; }
+
+    if (len(result) == 0) return ".";
+    return join(result, "/");
+}
+
+func withExtension(path, newExt) {
+    var dir = dirname(path);
+    var name = stem(path);
+    if (!startsWith(newExt, ".")) newExt = "." + newExt;
+    if (dir == ".") return name + newExt;
+    return dir + "/" + name + newExt;
+}
+
+func splitPath(path) {
+    return {
+        "dir": dirname(path),
+        "base": basename(path, null),
+        "ext": extname(path),
+        "name": stem(path)
+    };
+}

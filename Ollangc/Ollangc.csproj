@@ -1,0 +1,66 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PlatformTarget>x64</PlatformTarget>
+    <SignAssembly>False</SignAssembly>
+    <AssemblyName>ollang</AssemblyName>
+    
+    <TieredCompilation>true</TieredCompilation>
+    <TieredPGO>true</TieredPGO>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Optimize>true</Optimize>
+
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishTrimmed>false</PublishTrimmed>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="src\**\*.cs" />
+  </ItemGroup>
+
+  <Target Name="PostBuildDist" AfterTargets="Publish">
+    <Message Text="Packaging OLLang Distribution in dist..." Importance="high" />
+    <PropertyGroup>
+      <TargetDistDir>$(ProjectDir)dist\</TargetDistDir>
+    </PropertyGroup>
+    
+    <MakeDir Directories="$(TargetDistDir)" Condition="!Exists('$(TargetDistDir)')" />
+
+    <ItemGroup>
+      <DistFiles Include="$(PublishDir)ollang.exe" />
+      <NativeDLL Include="$(ProjectDir)OllangNativeDLL.dll" Condition="Exists('$(ProjectDir)OllangNativeDLL.dll')" />
+      <NativeDLL Include="$(ProjectDir)..\OllangNativeDLL.dll" Condition="Exists('$(ProjectDir)..\OllangNativeDLL.dll') and !Exists('$(ProjectDir)OllangNativeDLL.dll')" />
+    </ItemGroup>
+    
+    <Copy SourceFiles="@(DistFiles)" DestinationFolder="$(TargetDistDir)" SkipUnchangedFiles="false" />
+    <Copy SourceFiles="@(NativeDLL)" DestinationFolder="$(TargetDistDir)" SkipUnchangedFiles="false" />
+    
+    <Exec Command="xcopy /s /i /y &quot;$(ProjectDir)stdlib&quot; &quot;$(TargetDistDir)stdlib&quot;" />
+    
+    <Message Text="OLLang distribution ready in: $(TargetDistDir)" Importance="high" />
+  </Target>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <Optimize>true</Optimize>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+</Project>

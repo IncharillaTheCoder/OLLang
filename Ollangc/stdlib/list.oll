@@ -1,0 +1,337 @@
+/*
+Creation - range, repeat_val
+Filter - compact, unique, partition
+Transform - flatten, flatMap, chunk, zip, unzip, window
+Stats - groupBy, countBy, frequencies, minBy, maxBy
+Sort - sortBy
+Sequence - interleave, rotate, enumerate, scan
+Data Structures - Stack (push, pop, peek, size, isEmpty), Queue (enqueue, dequeue, peek, size, isEmpty), Set (add, has, remove, size, toArray, union, intersect, diff)
+*/
+
+func range(start, end, step) {
+    var res = [];
+    if (step == null) step = 1;
+    if (step > 0) {
+        var i = start;
+        while (i < end) { push(res, i); i = i + step; }
+    } else {
+        var i = start;
+        while (i > end) { push(res, i); i = i + step; }
+    }
+    return res;
+}
+
+func compact(list) {
+    var res = [];
+    for (item in list) {
+        if (item != null && item != false && item != 0 && item != "") {
+            push(res, item);
+        }
+    }
+    return res;
+}
+
+func unique(list) {
+    var seen = {};
+    var res = [];
+    for (item in list) {
+        var k = str(item);
+        if (!has(seen, k)) {
+            seen[k] = true;
+            push(res, item);
+        }
+    }
+    return res;
+}
+
+func zip(a, b) {
+    var res = [];
+    var n = len(a);
+    if (len(b) < n) n = len(b);
+    var i = 0;
+    while (i < n) {
+        push(res, [a[i], b[i]]);
+        i = i + 1;
+    }
+    return res;
+}
+
+func unzip(pairs) {
+    var a = [];
+    var b = [];
+    for (pair in pairs) {
+        push(a, pair[0]);
+        push(b, pair[1]);
+    }
+    return [a, b];
+}
+
+func flatten(list) {
+    var res = [];
+    for (item in list) {
+        if (type(item) == "array") {
+            var sub = flatten(item);
+            for (s in sub) push(res, s);
+        } else {
+            push(res, item);
+        }
+    }
+    return res;
+}
+
+func flatMap(list, fn) {
+    var res = [];
+    for (item in list) {
+        var sub = fn(item);
+        if (type(sub) == "array") {
+            for (s in sub) push(res, s);
+        } else {
+            push(res, sub);
+        }
+    }
+    return res;
+}
+
+func chunk(list, size) {
+    var res = [];
+    var current = [];
+    for (item in list) {
+        push(current, item);
+        if (len(current) == size) {
+            push(res, current);
+            current = [];
+        }
+    }
+    if (len(current) > 0) push(res, current);
+    return res;
+}
+
+func take(list, n) {
+    var res = [];
+    var i = 0;
+    while (i < n && i < len(list)) {
+        push(res, list[i]);
+        i = i + 1;
+    }
+    return res;
+}
+
+func drop(list, n) {
+    var res = [];
+    var i = n;
+    while (i < len(list)) {
+        push(res, list[i]);
+        i = i + 1;
+    }
+    return res;
+}
+
+func partition(list, fn) {
+    var pass = [];
+    var fail = [];
+    for (item in list) {
+        if (fn(item)) push(pass, item);
+        else push(fail, item);
+    }
+    return [pass, fail];
+}
+
+func groupBy(list, fn) {
+    var groups = {};
+    for (item in list) {
+        var key = str(fn(item));
+        if (!has(groups, key)) groups[key] = [];
+        push(groups[key], item);
+    }
+    return groups;
+}
+
+func countBy(list, fn) {
+    var counts = {};
+    for (item in list) {
+        var key = str(fn(item));
+        if (has(counts, key)) counts[key] = counts[key] + 1;
+        else counts[key] = 1;
+    }
+    return counts;
+}
+
+func frequencies(list) {
+    var counts = {};
+    for (item in list) {
+        var k = str(item);
+        if (has(counts, k)) counts[k] = counts[k] + 1;
+        else counts[k] = 1;
+    }
+    return counts;
+}
+
+func sortBy(list, fn) {
+    // insertion sort by key function
+    var result = [];
+    for (item in list) push(result, item);
+    var n = len(result);
+    var i = 1;
+    while (i < n) {
+        var key = result[i];
+        var keyVal = fn(key);
+        var j = i - 1;
+        while (j >= 0 && fn(result[j]) > keyVal) {
+            result[j + 1] = result[j];
+            j = j - 1;
+        }
+        result[j + 1] = key;
+        i = i + 1;
+    }
+    return result;
+}
+
+func interleave(a, b) {
+    var res = [];
+    var maxLen = len(a);
+    if (len(b) > maxLen) maxLen = len(b);
+    var i = 0;
+    while (i < maxLen) {
+        if (i < len(a)) push(res, a[i]);
+        if (i < len(b)) push(res, b[i]);
+        i = i + 1;
+    }
+    return res;
+}
+
+func rotate(list, n) {
+    if (len(list) == 0) return [];
+    var k = n % len(list);
+    if (k < 0) k = k + len(list);
+    var result = [];
+    var i = k;
+    while (i < len(list)) { push(result, list[i]); i = i + 1; }
+    i = 0;
+    while (i < k) { push(result, list[i]); i = i + 1; }
+    return result;
+}
+
+func window(list, size) {
+    var res = [];
+    var i = 0;
+    while (i + size <= len(list)) {
+        var w = [];
+        var j = 0;
+        while (j < size) { push(w, list[i + j]); j = j + 1; }
+        push(res, w);
+        i = i + 1;
+    }
+    return res;
+}
+
+func scan(list, fn, initial) {
+    var res = [];
+    var acc = initial;
+    for (item in list) {
+        acc = fn(acc, item);
+        push(res, acc);
+    }
+    return res;
+}
+
+func repeat_val(val, n) {
+    var res = [];
+    var i = 0;
+    while (i < n) { push(res, val); i = i + 1; }
+    return res;
+}
+
+func enumerate(list) {
+    var res = [];
+    var i = 0;
+    while (i < len(list)) {
+        push(res, [i, list[i]]);
+        i = i + 1;
+    }
+    return res;
+}
+
+func minBy(list, fn) {
+    if (len(list) == 0) return null;
+    var best = list[0];
+    var bestVal = fn(best);
+    var i = 1;
+    while (i < len(list)) {
+        var v = fn(list[i]);
+        if (v < bestVal) { best = list[i]; bestVal = v; }
+        i = i + 1;
+    }
+    return best;
+}
+
+func maxBy(list, fn) {
+    if (len(list) == 0) return null;
+    var best = list[0];
+    var bestVal = fn(best);
+    var i = 1;
+    while (i < len(list)) {
+        var v = fn(list[i]);
+        if (v > bestVal) { best = list[i]; bestVal = v; }
+        i = i + 1;
+    }
+    return best;
+}
+
+class Stack {
+    func constructor() {
+        self.items = [];
+    }
+    func push(item) { push(self.items, item); }
+    func pop() { return pop(self.items); }
+    func peek() {
+        if (len(self.items) == 0) return null;
+        return self.items[len(self.items) - 1];
+    }
+    func size() { return len(self.items); }
+    func isEmpty() { return len(self.items) == 0; }
+}
+
+class Queue {
+    func constructor() {
+        self.items = [];
+    }
+    func enqueue(item) { push(self.items, item); }
+    func dequeue() { return shift(self.items); }
+    func peek() {
+        if (len(self.items) == 0) return null;
+        return self.items[0];
+    }
+    func size() { return len(self.items); }
+    func isEmpty() { return len(self.items) == 0; }
+}
+
+class Set {
+    func constructor() {
+        self._data = {};
+    }
+    func add(val) { self._data[str(val)] = val; }
+    func has(val) { return has(self._data, str(val)); }
+    func remove(val) { remove(self._data, str(val)); }
+    func size() { return len(keys(self._data)); }
+    func toArray() { return values(self._data); }
+    func union(other) {
+        var result = new Set();
+        for (v in self.toArray()) result.add(v);
+        for (v in other.toArray()) result.add(v);
+        return result;
+    }
+    func intersect(other) {
+        var result = new Set();
+        for (v in self.toArray()) {
+            if (other.has(v)) result.add(v);
+        }
+        return result;
+    }
+    func diff(other) {
+        var result = new Set();
+        for (v in self.toArray()) {
+            if (!other.has(v)) result.add(v);
+        }
+        return result;
+    }
+}

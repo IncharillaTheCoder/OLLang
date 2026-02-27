@@ -1,0 +1,156 @@
+/*
+Fetch - httpGet, httpPost, httpJson, httpPostJson
+URL - urlEncode, buildQuery
+Hex - _toHex
+*/
+
+func httpGet(url, headers) {
+    if (headers != null) return Web.fetch(url, "GET", headers, null);
+    return Web.get(url);
+}
+
+func httpPost(url, body, headers) {
+    if (headers == null) headers = {};
+    return Web.fetch(url, "POST", headers, body);
+}
+
+func httpJson(url, headers) {
+    var response = httpGet(url, headers);
+    return JSON.parse(response);
+}
+
+func httpPostJson(url, data, headers) {
+    if (headers == null) headers = {};
+    headers["Content-Type"] = "application/json";
+    var body = JSON.stringify(data);
+    var response = httpPost(url, body, headers);
+    return JSON.parse(response);
+}
+
+func urlEncode(s) {
+    var result = "";
+    var i = 0;
+    while (i < len(s)) {
+        var ch = substring(s, i, 1);
+        if ((ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || (ch >= "0" && ch <= "9") || ch == "-" || ch == "_" || ch == "." || ch == "~") {
+            result = result + ch;
+        } else if (ch == " ") {
+            result = result + "+";
+        } else {
+            var code = charCodeAt(ch, 0);
+            result = result + "%" + _toHex(code);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+func _toHex(n) {
+    var hex = "0123456789ABCDEF";
+    if (n < 16) return "0" + substring(hex, n, 1);
+    return substring(hex, floor(n / 16), 1) + substring(hex, n % 16, 1);
+}
+
+func buildQuery(params) {
+    var parts = [];
+    var k = keys(params);
+    for (key in k) {
+        push(parts, urlEncode(str(key)) + "=" + urlEncode(str(params[key])));
+    }
+    return join(parts, "&");
+}
+
+func parseQuery(query) {
+    if (startsWith(query, "?")) query = substring(query, 1);
+    var result = {};
+    var pairs = split(query, "&");
+    for (pair in pairs) {
+        var eq = find(pair, "=");
+        if (eq >= 0) {
+            result[substring(pair, 0, eq)] = substring(pair, eq + 1);
+        } else {
+            result[pair] = true;
+        }
+    }
+    return result;
+}
+
+func parseUrl(url) {
+    var result = { "protocol": "", "host": "", "port": "", "path": "/", "query": "", "fragment": "" };
+
+    // fragment
+    var hashPos = find(url, "#");
+    if (hashPos >= 0) {
+        result["fragment"] = substring(url, hashPos + 1);
+        url = substring(url, 0, hashPos);
+    }
+
+    // query
+    var qPos = find(url, "?");
+    if (qPos >= 0) {
+        result["query"] = substring(url, qPos + 1);
+        url = substring(url, 0, qPos);
+    }
+
+    // protocol
+    var protoEnd = find(url, "://");
+    if (protoEnd >= 0) {
+        result["protocol"] = substring(url, 0, protoEnd);
+        url = substring(url, protoEnd + 3);
+    }
+
+    // path
+    var pathStart = find(url, "/");
+    if (pathStart >= 0) {
+        result["path"] = substring(url, pathStart);
+        url = substring(url, 0, pathStart);
+    }
+
+    // port
+    var portSep = find(url, ":");
+    if (portSep >= 0) {
+        result["port"] = substring(url, portSep + 1);
+        url = substring(url, 0, portSep);
+    }
+
+    result["host"] = url;
+    return result;
+}
+
+class HttpClient {
+    func constructor(baseUrl) {
+        self.baseUrl = baseUrl;
+        if (self.baseUrl == null) self.baseUrl = "";
+        self.headers = {};
+    }
+
+    func setHeader(key, value) {
+        self.headers[key] = value;
+    }
+
+    func get(path) {
+        return Web.fetch(self.baseUrl + path, "GET", self.headers, null);
+    }
+
+    func post(path, body) {
+        return Web.fetch(self.baseUrl + path, "POST", self.headers, body);
+    }
+
+    func put(path, body) {
+        return Web.fetch(self.baseUrl + path, "PUT", self.headers, body);
+    }
+
+    func delete(path) {
+        return Web.fetch(self.baseUrl + path, "DELETE", self.headers, null);
+    }
+
+    func getJson(path) {
+        self.headers["Accept"] = "application/json";
+        return JSON.parse(self.get(path));
+    }
+
+    func postJson(path, data) {
+        self.headers["Content-Type"] = "application/json";
+        return JSON.parse(self.post(path, JSON.stringify(data)));
+    }
+}

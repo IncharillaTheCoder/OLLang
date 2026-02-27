@@ -1,0 +1,1035 @@
+/*
+Table Management - createTable, createTableIfNotExists, dropTable, dropTableIfExists, tableExists, listTables, renameTable, addColumn, dropColumn, describe, tableInfo
+Insert - insert, insertMany, insertOrIgnore, upsert (insert or update by match column)
+Select - select (with where, orderBy, desc, limit, offset, columns, distinct), selectOne, findById, count, exists, pluck (returns single column as array)
+Update - update, updateById, increment, decrement
+Delete - delete, deleteById, deleteAll, truncate
+Aggregates - sum, avg, min, max, groupBy (with count/sum/avg/min/max)
+Joins - join supporting inner, left, right, cross
+Transactions - begin/commit/rollback + transaction(fn) wrapper that auto-rolls back on error
+SQL String Parser - exec() handles CREATE TABLE, DROP TABLE, INSERT INTO, SELECT, UPDATE, DELETE FROM with full WHERE, ORDER BY, LIMIT/OFFSET parsing
+Operators in where dicts - $gt, $gte, $lt, $lte, $ne, $in, $nin, $like, $exists, $between, $regex
+I/O - dump, toCSV, importCSV, toJSON, importJSON, copyTable, close
+*/
+
+
+class Database {
+    func constructor(path) {
+        self.path = path
+        self.tables = {}
+        self.autoId = {}
+        self._snapshot = null
+        if (!Dir.exists(path)) Dir.create(path)
+        self._loadMeta()
+    }
+
+    func _metaPath() {
+        return Path.join(self.path, "_meta.json")
+    }
+
+    func _tablePath(name) {
+        return Path.join(self.path, name + ".json")
+    }
+
+    func _loadMeta() {
+        var mp = self._metaPath()
+        if (File.exists(mp)) {
+            var meta = JSON.parse(File.read(mp))
+            if (has(meta, "autoId")) self.autoId = meta["autoId"]
+        }
+    }
+
+    func _saveMeta() {
+        File.write(self._metaPath(), JSON.stringify({ "autoId": self.autoId }))
+    }
+
+    func _loadTable(name) {
+        var tp = self._tablePath(name)
+        if (File.exists(tp)) {
+            self.tables[name] = JSON.parse(File.read(tp))
+        }
+        return self.tables[name]
+    }
+
+    func _saveTable(name) {
+        File.write(self._tablePath(name), JSON.stringify(self.tables[name]))
+    }
+
+    func _getTable(name) {
+        if (has(self.tables, name)) return self.tables[name]
+        return self._loadTable(name)
+    }
+
+    func _getPrimaryKey(table) {
+        for (col in table["columns"]) {
+            if (has(col, "primary") && col["primary"]) return col["name"]
+        }
+        return null
+    }
+
+    func _getAutoIncrementCol(table) {
+        for (col in table["columns"]) {
+            if (has(col, "autoIncrement") && col["autoIncrement"]) return col["name"]
+        }
+        return null
+    }
+
+    func _colNames(table) {
+        var names = []
+        for (col in table["columns"]) push(names, col["name"])
+        return names
+    }
+
+    // TABLE MANAGEMENT
+
+    func createTable(name, columns) {
+        if (has(self.tables, name)) throw "Table '" + name + "' already exists"
+        self.tables[name] = { "columns": columns, "rows": [] }
+        self.autoId[name] = 0
+        self._saveTable(name)
+        self._saveMeta()
+        return true
+    }
+
+    func createTableIfNotExists(name, columns) {
+        if (self.tableExists(name)) return false
+        return self.createTable(name, columns)
+    }
+
+    func dropTable(name) {
+        var tp = self._tablePath(name)
+        if (has(self.tables, name)) remove(self.tables, name)
+        if (has(self.autoId, name)) remove(self.autoId, name)
+        if (File.exists(tp)) File.delete(tp)
+        self._saveMeta()
+        return true
+    }
+
+    func dropTableIfExists(name) {
+        if (!self.tableExists(name)) return false
+        return self.dropTable(name)
+    }
+
+    func tableExists(name) {
+        return has(self.tables, name) || File.exists(self._tablePath(name))
+    }
+
+    func listTables() {
+        var files = Dir.files(self.path, "*.json")
+        var result = []
+        for (f in files) {
+            var base = Path.base(f)
+            if (base != "_meta.json") push(result, replace(base, ".json", ""))
+        }
+        return result
+    }
+
+    func describe(tableName) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+        return table["columns"]
+    }
+
+    func tableInfo(tableName) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+        return { "name": tableName, "columns": table["columns"], "rowCount": len(table["rows"]) }
+    }
+
+    func renameTable(oldName, newName) {
+        var table = self._getTable(oldName)
+        if (table == null) throw "Table '" + oldName + "' not found"
+        if (self.tableExists(newName)) throw "Table '" + newName + "' already exists"
+        self.tables[newName] = table
+        self._saveTable(newName)
+        self.dropTable(oldName)
+        if (has(self.autoId, oldName)) {
+            self.autoId[newName] = self.autoId[oldName]
+            remove(self.autoId, oldName)
+        }
+        self._saveMeta()
+        return true
+    }
+
+    func addColumn(tableName, col) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+        push(table["columns"], col)
+        var defVal = null
+        if (has(col, "default")) defVal = col["default"]
+        for (row in table["rows"]) row[col["name"]] = defVal
+        self._saveTable(tableName)
+        return true
+    }
+
+    func dropColumn(tableName, colName) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+        var newCols = []
+        for (col in table["columns"]) {
+            if (col["name"] != colName) push(newCols, col)
+        }
+        table["columns"] = newCols
+        for (row in table["rows"]) {
+            if (has(row, colName)) remove(row, colName)
+        }
+        self._saveTable(tableName)
+        return true
+    }
+
+    // INSERT
+
+    func insert(tableName, data) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+
+        var autoCol = self._getAutoIncrementCol(table)
+        if (autoCol != null && (!has(data, autoCol) || data[autoCol] == null)) {
+            if (!has(self.autoId, tableName)) self.autoId[tableName] = 0
+            self.autoId[tableName] = self.autoId[tableName] + 1
+            data[autoCol] = self.autoId[tableName]
+        }
+
+        var row = {}
+        for (col in table["columns"]) {
+            var cn = col["name"]
+            if (has(data, cn)) {
+                row[cn] = data[cn]
+            } else if (has(col, "default")) {
+                row[cn] = col["default"]
+            } else {
+                row[cn] = null
+            }
+        }
+
+        for (col in table["columns"]) {
+            if (has(col, "unique") && col["unique"] && row[col["name"]] != null) {
+                for (existing in table["rows"]) {
+                    if (existing[col["name"]] == row[col["name"]]) {
+                        throw "Unique constraint violated on '" + col["name"] + "'"
+                    }
+                }
+            }
+        }
+
+        for (col in table["columns"]) {
+            if (has(col, "notNull") && col["notNull"] && row[col["name"]] == null) {
+                throw "NOT NULL constraint violated on '" + col["name"] + "'"
+            }
+        }
+
+        push(table["rows"], row)
+        self._saveTable(tableName)
+        self._saveMeta()
+        return row[self._getPrimaryKey(table)]
+    }
+
+    func insertMany(tableName, rows) {
+        var ids = []
+        for (row in rows) push(ids, self.insert(tableName, row))
+        return ids
+    }
+
+    func insertOrIgnore(tableName, data) {
+        try {
+            return self.insert(tableName, data)
+        } catch (e) {
+            return null
+        }
+    }
+
+    func upsert(tableName, data, matchCol) {
+        var where = {}
+        where[matchCol] = data[matchCol]
+        var existing = self.selectOne(tableName, where)
+        if (existing != null) {
+            self.update(tableName, data, where)
+            return existing[matchCol]
+        }
+        return self.insert(tableName, data)
+    }
+
+    // SELECT
+
+    func select(tableName, options) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+
+        var rows = table["rows"]
+
+        if (options != null && has(options, "where")) {
+            rows = self._applyWhere(rows, options["where"])
+        }
+
+        if (options != null && has(options, "orderBy")) {
+            rows = self._applyOrderBy(rows, options["orderBy"], has(options, "desc") && options["desc"])
+        }
+
+        if (options != null && has(options, "offset")) {
+            rows = slice(rows, options["offset"], len(rows))
+        }
+
+        if (options != null && has(options, "limit")) {
+            rows = slice(rows, 0, options["limit"])
+        }
+
+        if (options != null && has(options, "columns")) {
+            var cols = options["columns"]
+            var projected = []
+            for (row in rows) {
+                var pr = {}
+                for (c in cols) pr[c] = row[c]
+                push(projected, pr)
+            }
+            rows = projected
+        }
+
+        if (options != null && has(options, "distinct") && options["distinct"]) {
+            rows = self._distinct(rows)
+        }
+
+        return rows
+    }
+
+    func selectOne(tableName, where) {
+        var results = self.select(tableName, { "where": where, "limit": 1 })
+        if (len(results) > 0) return results[0]
+        return null
+    }
+
+    func findById(tableName, id) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+        var pk = self._getPrimaryKey(table)
+        if (pk == null) throw "Table '" + tableName + "' has no primary key"
+        var where = {}
+        where[pk] = id
+        return self.selectOne(tableName, where)
+    }
+
+    func count(tableName, where) {
+        if (where == null) {
+            var table = self._getTable(tableName)
+            return len(table["rows"])
+        }
+        return len(self.select(tableName, { "where": where }))
+    }
+
+    func exists(tableName, where) {
+        return self.count(tableName, where) > 0
+    }
+
+    func pluck(tableName, column, where) {
+        var rows = self.select(tableName, { "where": where, "columns": [column] })
+        var result = []
+        for (row in rows) push(result, row[column])
+        return result
+    }
+
+    // UPDATE
+
+    func update(tableName, setData, where) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+
+        var affected = 0
+        var i = 0
+        while (i < len(table["rows"])) {
+            var row = table["rows"][i]
+            if (self._matchWhere(row, where)) {
+                for (key in keys(setData)) row[key] = setData[key]
+                affected = affected + 1
+            }
+            i = i + 1
+        }
+
+        if (affected > 0) self._saveTable(tableName)
+        return affected
+    }
+
+    func updateById(tableName, id, setData) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+        var pk = self._getPrimaryKey(table)
+        if (pk == null) throw "Table '" + tableName + "' has no primary key"
+        var where = {}
+        where[pk] = id
+        return self.update(tableName, setData, where)
+    }
+
+    func increment(tableName, column, where, amount) {
+        if (amount == null) amount = 1
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+        var affected = 0
+        var i = 0
+        while (i < len(table["rows"])) {
+            var row = table["rows"][i]
+            if (self._matchWhere(row, where)) {
+                row[column] = row[column] + amount
+                affected = affected + 1
+            }
+            i = i + 1
+        }
+        if (affected > 0) self._saveTable(tableName)
+        return affected
+    }
+
+    func decrement(tableName, column, where, amount) {
+        if (amount == null) amount = 1
+        return self.increment(tableName, column, where, -amount)
+    }
+
+    // DELETE
+
+    func delete(tableName, where) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+
+        var before = len(table["rows"])
+        var kept = []
+        for (row in table["rows"]) {
+            if (!self._matchWhere(row, where)) push(kept, row)
+        }
+        table["rows"] = kept
+        var affected = before - len(kept)
+        if (affected > 0) self._saveTable(tableName)
+        return affected
+    }
+
+    func deleteById(tableName, id) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+        var pk = self._getPrimaryKey(table)
+        if (pk == null) throw "Table '" + tableName + "' has no primary key"
+        var where = {}
+        where[pk] = id
+        return self.delete(tableName, where)
+    }
+
+    func deleteAll(tableName) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+        var count = len(table["rows"])
+        table["rows"] = []
+        self._saveTable(tableName)
+        return count
+    }
+
+    // WHERE ENGINE
+
+    func _matchWhere(row, where) {
+        if (where == null) return true
+        for (key in keys(where)) {
+            var expected = where[key]
+            var actual = row[key]
+            if (type(expected) == "dict") {
+                if (!self._matchOp(actual, expected)) return false
+            } else {
+                if (actual != expected) return false
+            }
+        }
+        return true
+    }
+
+    func _matchOp(actual, opDict) {
+        for (op in keys(opDict)) {
+            var val = opDict[op]
+            if      (op == "$gt")      { if (!(actual > val))  return false }
+            else if (op == "$gte")     { if (!(actual >= val)) return false }
+            else if (op == "$lt")      { if (!(actual < val))  return false }
+            else if (op == "$lte")     { if (!(actual <= val)) return false }
+            else if (op == "$ne")      { if (actual == val)    return false }
+            else if (op == "$in") {
+                var found = false
+                for (v in val) { if (actual == v) found = true }
+                if (!found) return false
+            }
+            else if (op == "$nin") {
+                for (v in val) { if (actual == v) return false }
+            }
+            else if (op == "$like") {
+                if (!self._matchLike(str(actual), str(val))) return false
+            }
+            else if (op == "$exists") {
+                if (val && actual == null)   return false
+                if (!val && actual != null)  return false
+            }
+            else if (op == "$between") {
+                if (actual < val[0] || actual > val[1]) return false
+            }
+            else if (op == "$regex") {
+                if (!contains(str(actual), str(val))) return false
+            }
+        }
+        return true
+    }
+
+    func _matchLike(s, pattern) {
+        var p = lower(pattern)
+        var t = lower(s)
+        if (startsWith(p, "%") && endsWith(p, "%")) return contains(t, substring(p, 1, len(p) - 2))
+        if (startsWith(p, "%")) return endsWith(t, substring(p, 1))
+        if (endsWith(p, "%"))   return startsWith(t, substring(p, 0, len(p) - 1))
+        return t == p
+    }
+
+    func _applyWhere(rows, where) {
+        var result = []
+        for (row in rows) {
+            if (self._matchWhere(row, where)) push(result, row)
+        }
+        return result
+    }
+
+    func _applyOrderBy(rows, field, desc) {
+        var arr = []
+        for (r in rows) push(arr, r)
+        var n = len(arr)
+        var i = 0
+        while (i < n - 1) {
+            var j = 0
+            while (j < n - 1 - i) {
+                var a = arr[j][field]
+                var b = arr[j + 1][field]
+                var swap = false
+                if (desc) { if (a < b) swap = true }
+                else      { if (a > b) swap = true }
+                if (swap) {
+                    var tmp = arr[j]
+                    arr[j] = arr[j + 1]
+                    arr[j + 1] = tmp
+                }
+                j = j + 1
+            }
+            i = i + 1
+        }
+        return arr
+    }
+
+    func _distinct(rows) {
+        var seen = {}
+        var result = []
+        for (row in rows) {
+            var key = JSON.stringify(row)
+            if (!has(seen, key)) {
+                seen[key] = true
+                push(result, row)
+            }
+        }
+        return result
+    }
+
+    // AGGREGATES
+
+    func sum(tableName, column, where) {
+        var rows = self.select(tableName, { "where": where })
+        var total = 0
+        for (row in rows) { if (row[column] != null) total = total + row[column] }
+        return total
+    }
+
+    func avg(tableName, column, where) {
+        var rows = self.select(tableName, { "where": where })
+        if (len(rows) == 0) return null
+        var total = 0
+        var c = 0
+        for (row in rows) {
+            if (row[column] != null) { total = total + row[column]; c = c + 1 }
+        }
+        if (c == 0) return null
+        return total / c
+    }
+
+    func min(tableName, column, where) {
+        var rows = self.select(tableName, { "where": where })
+        var m = null
+        for (row in rows) {
+            if (row[column] != null && (m == null || row[column] < m)) m = row[column]
+        }
+        return m
+    }
+
+    func max(tableName, column, where) {
+        var rows = self.select(tableName, { "where": where })
+        var m = null
+        for (row in rows) {
+            if (row[column] != null && (m == null || row[column] > m)) m = row[column]
+        }
+        return m
+    }
+
+    func groupBy(tableName, groupCol, aggCol, aggFn, where) {
+        var rows = self.select(tableName, { "where": where })
+        var groups = {}
+        for (row in rows) {
+            var key = str(row[groupCol])
+            if (!has(groups, key)) groups[key] = []
+            push(groups[key], row[aggCol])
+        }
+        var result = []
+        for (g in keys(groups)) {
+            var vals = groups[g]
+            var aggResult = null
+            if (aggFn == "count") {
+                aggResult = len(vals)
+            } else if (aggFn == "sum") {
+                aggResult = 0
+                for (v in vals) { if (v != null) aggResult = aggResult + v }
+            } else if (aggFn == "avg") {
+                var t = 0
+                var c = 0
+                for (v in vals) { if (v != null) { t = t + v; c = c + 1 } }
+                if (c > 0) aggResult = t / c
+            } else if (aggFn == "min") {
+                for (v in vals) { if (v != null && (aggResult == null || v < aggResult)) aggResult = v }
+            } else if (aggFn == "max") {
+                for (v in vals) { if (v != null && (aggResult == null || v > aggResult)) aggResult = v }
+            }
+            push(result, { "group": g, "value": aggResult })
+        }
+        return result
+    }
+
+    // JOINS
+
+    func join(table1, table2, on1, on2, joinType) {
+        if (joinType == null) joinType = "inner"
+        var t1 = self._getTable(table1)
+        var t2 = self._getTable(table2)
+        if (t1 == null) throw "Table '" + table1 + "' not found"
+        if (t2 == null) throw "Table '" + table2 + "' not found"
+
+        var result = []
+        if (joinType == "inner") {
+            for (r1 in t1["rows"]) {
+                for (r2 in t2["rows"]) {
+                    if (r1[on1] == r2[on2]) push(result, self._mergeRows(r1, r2, table1, table2))
+                }
+            }
+        } else if (joinType == "left") {
+            for (r1 in t1["rows"]) {
+                var matched = false
+                for (r2 in t2["rows"]) {
+                    if (r1[on1] == r2[on2]) {
+                        push(result, self._mergeRows(r1, r2, table1, table2))
+                        matched = true
+                    }
+                }
+                if (!matched) push(result, self._mergeRowNull(r1, t2, table1, table2))
+            }
+        } else if (joinType == "right") {
+            for (r2 in t2["rows"]) {
+                var matched = false
+                for (r1 in t1["rows"]) {
+                    if (r1[on1] == r2[on2]) {
+                        push(result, self._mergeRows(r1, r2, table1, table2))
+                        matched = true
+                    }
+                }
+                if (!matched) push(result, self._mergeRowNull(r2, t1, table2, table1))
+            }
+        } else if (joinType == "cross") {
+            for (r1 in t1["rows"]) {
+                for (r2 in t2["rows"]) push(result, self._mergeRows(r1, r2, table1, table2))
+            }
+        }
+        return result
+    }
+
+    func _mergeRows(r1, r2, prefix1, prefix2) {
+        var merged = {}
+        for (k in keys(r1)) merged[prefix1 + "." + k] = r1[k]
+        for (k in keys(r2)) merged[prefix2 + "." + k] = r2[k]
+        return merged
+    }
+
+    func _mergeRowNull(r1, table2, prefix1, prefix2) {
+        var merged = {}
+        for (k in keys(r1)) merged[prefix1 + "." + k] = r1[k]
+        for (col in table2["columns"]) merged[prefix2 + "." + col["name"]] = null
+        return merged
+    }
+
+    // TRANSACTIONS
+
+    func begin() {
+        self._snapshot = {}
+        for (t in self.listTables()) {
+            var table = self._getTable(t)
+            self._snapshot[t] = JSON.parse(JSON.stringify(table))
+        }
+    }
+
+    func commit() {
+        self._snapshot = null
+    }
+
+    func rollback() {
+        if (self._snapshot != null) {
+            for (t in keys(self._snapshot)) {
+                self.tables[t] = self._snapshot[t]
+                self._saveTable(t)
+            }
+            self._snapshot = null
+        }
+    }
+
+    func transaction(fn) {
+        self.begin()
+        try {
+            var result = fn()
+            self.commit()
+            return result
+        } catch (e) {
+            self.rollback()
+            throw e
+        }
+    }
+
+    // SQL STRING PARSER
+
+    func exec(sql) {
+        var s = trim(sql)
+        var low = lower(s)
+        if (startsWith(low, "create table")) return self._execCreate(s)
+        if (startsWith(low, "drop table"))   return self._execDrop(s)
+        if (startsWith(low, "insert into"))  return self._execInsert(s)
+        if (startsWith(low, "select"))       return self._execSelect(s)
+        if (startsWith(low, "update"))       return self._execUpdate(s)
+        if (startsWith(low, "delete from"))  return self._execDelete(s)
+        throw "Unknown SQL statement: " + s
+    }
+
+    func _execCreate(sql) {
+        var s = trim(substring(sql, 13))
+        var parenPos = find(s, "(")
+        if (parenPos < 0) throw "Invalid CREATE TABLE syntax"
+        var tableName = trim(substring(s, 0, parenPos))
+        var ifNotExists = false
+        if (startsWith(lower(tableName), "if not exists ")) {
+            ifNotExists = true
+            tableName = trim(substring(tableName, 14))
+        }
+        if (ifNotExists && self.tableExists(tableName)) return false
+
+        var colStr = substring(s, parenPos + 1)
+        var endParen = find(colStr, ")")
+        if (endParen >= 0) colStr = substring(colStr, 0, endParen)
+
+        var columns = []
+        for (part in split(colStr, ",")) {
+            var p = trim(part)
+            var tokens = split(p, " ")
+            var col = { "name": tokens[0], "type": "any" }
+            if (len(tokens) > 1) col["type"] = lower(tokens[1])
+            var pLow = lower(p)
+            if (contains(pLow, "primary key"))                                         col["primary"] = true
+            if (contains(pLow, "autoincrement") || contains(pLow, "auto_increment")) { col["autoIncrement"] = true; col["primary"] = true }
+            if (contains(pLow, "not null"))  col["notNull"] = true
+            if (contains(pLow, "unique"))    col["unique"]  = true
+            var defPos = find(pLow, "default ")
+            if (defPos >= 0) {
+                var defVal = trim(substring(p, defPos + 8))
+                var spPos = find(defVal, " ")
+                if (spPos >= 0) defVal = substring(defVal, 0, spPos)
+                if (defVal == "null") col["default"] = null
+                else col["default"] = replace(replace(defVal, "'", ""), "\"", "")
+            }
+            push(columns, col)
+        }
+        return self.createTable(tableName, columns)
+    }
+
+    func _execDrop(sql) {
+        var s = trim(substring(sql, 11))
+        if (startsWith(lower(s), "if exists ")) {
+            var tableName = trim(substring(s, 10))
+            if (!self.tableExists(tableName)) return false
+            return self.dropTable(tableName)
+        }
+        return self.dropTable(trim(s))
+    }
+
+    func _execInsert(sql) {
+        var s = trim(substring(sql, 12))
+        var parenPos = find(s, "(")
+        var tableName = trim(substring(s, 0, parenPos))
+        var closeParen = find(s, ")")
+        var colNames = split(substring(s, parenPos + 1, closeParen - parenPos - 1), ",")
+        var i = 0
+        while (i < len(colNames)) { colNames[i] = trim(colNames[i]); i = i + 1 }
+
+        var valPos = find(lower(s), "values")
+        if (valPos < 0) throw "Missing VALUES in INSERT"
+        var valStr = trim(substring(s, valPos + 6))
+
+        var ids = []
+        while (len(valStr) > 0) {
+            var vOpen = find(valStr, "(")
+            if (vOpen < 0) break
+            var vClose = find(valStr, ")")
+            if (vClose < 0) throw "Unclosed VALUES parenthesis"
+            var vals = self._parseCsvValues(substring(valStr, vOpen + 1, vClose - vOpen - 1))
+            var data = {}
+            var j = 0
+            while (j < len(colNames) && j < len(vals)) { data[colNames[j]] = vals[j]; j = j + 1 }
+            push(ids, self.insert(tableName, data))
+            valStr = trim(substring(valStr, vClose + 1))
+            if (startsWith(valStr, ",")) valStr = trim(substring(valStr, 1))
+        }
+        if (len(ids) == 1) return ids[0]
+        return ids
+    }
+
+    func _execSelect(sql) {
+        var s = trim(substring(sql, 7))
+        var fromPos = find(lower(s), " from ")
+        if (fromPos < 0) throw "Missing FROM in SELECT"
+        var colPart = trim(substring(s, 0, fromPos))
+        var rest = trim(substring(s, fromPos + 6))
+
+        var tableName = ""
+        var spacePos = find(rest, " ")
+        if (spacePos >= 0) { tableName = trim(substring(rest, 0, spacePos)); rest = trim(substring(rest, spacePos)) }
+        else { tableName = trim(rest); rest = "" }
+
+        var options = {}
+
+        if (colPart != "*") {
+            var cols = split(colPart, ",")
+            var i = 0
+            while (i < len(cols)) { cols[i] = trim(cols[i]); i = i + 1 }
+            options["columns"] = cols
+        }
+
+        if (startsWith(lower(colPart), "distinct ")) {
+            options["distinct"] = true
+            if (has(options, "columns")) options["columns"][0] = trim(substring(options["columns"][0], 9))
+        }
+
+        var wherePos = find(lower(rest), "where ")
+        if (wherePos >= 0) {
+            var afterWhere = substring(rest, wherePos + 6)
+            var endWhere = len(afterWhere)
+            var op2 = find(lower(afterWhere), " order by ")
+            var lp2 = find(lower(afterWhere), " limit ")
+            if (op2 >= 0 && op2 < endWhere) endWhere = op2
+            if (lp2 >= 0 && lp2 < endWhere) endWhere = lp2
+            options["where"] = self._parseWhereStr(trim(substring(afterWhere, 0, endWhere)))
+            rest = substring(afterWhere, endWhere)
+        }
+
+        var orderPos = find(lower(rest), "order by ")
+        if (orderPos >= 0) {
+            var afterOrder = trim(substring(rest, orderPos + 9))
+            var lp3 = find(lower(afterOrder), " limit ")
+            var orderField = afterOrder
+            if (lp3 >= 0) orderField = trim(substring(afterOrder, 0, lp3))
+            if (endsWith(lower(orderField), " desc"))      { options["orderBy"] = trim(substring(orderField, 0, len(orderField) - 5)); options["desc"] = true }
+            else if (endsWith(lower(orderField), " asc"))  { options["orderBy"] = trim(substring(orderField, 0, len(orderField) - 4)) }
+            else                                           { options["orderBy"] = trim(orderField) }
+            if (lp3 >= 0) rest = substring(afterOrder, lp3)
+            else rest = ""
+        }
+
+        var limitPos = find(lower(rest), "limit ")
+        if (limitPos >= 0) {
+            var afterLimit = trim(substring(rest, limitPos + 6))
+            var offPos = find(lower(afterLimit), " offset ")
+            if (offPos >= 0) {
+                options["limit"]  = num(trim(substring(afterLimit, 0, offPos)))
+                options["offset"] = num(trim(substring(afterLimit, offPos + 8)))
+            } else {
+                options["limit"] = num(trim(afterLimit))
+            }
+        }
+
+        return self.select(tableName, options)
+    }
+
+    func _execUpdate(sql) {
+        var s = trim(substring(sql, 7))
+        var setPos = find(lower(s), " set ")
+        if (setPos < 0) throw "Missing SET in UPDATE"
+        var tableName = trim(substring(s, 0, setPos))
+        var rest = trim(substring(s, setPos + 5))
+        var wherePos = find(lower(rest), " where ")
+        var setPart = rest
+        var where = null
+        if (wherePos >= 0) {
+            setPart = trim(substring(rest, 0, wherePos))
+            where = self._parseWhereStr(trim(substring(rest, wherePos + 7)))
+        }
+        return self.update(tableName, self._parseSetStr(setPart), where)
+    }
+
+    func _execDelete(sql) {
+        var s = trim(substring(sql, 12))
+        var wherePos = find(lower(s), " where ")
+        if (wherePos < 0) return self.deleteAll(trim(s))
+        var tableName = trim(substring(s, 0, wherePos))
+        return self.delete(tableName, self._parseWhereStr(trim(substring(s, wherePos + 7))))
+    }
+
+    // SQL PARSE HELPERS
+
+    func _parseCsvValues(s) {
+        var result = []
+        for (v in split(s, ",")) push(result, self._parseSqlValue(trim(v)))
+        return result
+    }
+
+    func _parseSqlValue(s) {
+        if (s == "null" || s == "NULL")   return null
+        if (s == "true" || s == "TRUE")   return true
+        if (s == "false" || s == "FALSE") return false
+        if ((startsWith(s, "'") && endsWith(s, "'")) || (startsWith(s, "\"") && endsWith(s, "\""))) {
+            return substring(s, 1, len(s) - 2)
+        }
+        var first = substring(s, 0, 1)
+        if ((first >= "0" && first <= "9") || first == "-") {
+            var n = num(s)
+            if (n != null) return n
+        }
+        return s
+    }
+
+    func _parseWhereStr(s) {
+        var where = {}
+        var conditions = []
+        for (p in split(s, " AND ")) {
+            for (p2 in split(p, " and ")) push(conditions, trim(p2))
+        }
+        var ops = [">=", "<=", "!=", "<>", ">", "<", "=", " LIKE ", " like ", " IN ", " in "]
+        for (cond in conditions) {
+            var c = trim(cond)
+            var foundOp = null
+            var opPos = -1
+            for (op in ops) {
+                var p = find(c, op)
+                if (p >= 0 && (opPos < 0 || p < opPos)) { opPos = p; foundOp = op }
+            }
+            if (foundOp == null) throw "Invalid WHERE condition: " + c
+            var col     = trim(substring(c, 0, opPos))
+            var val     = trim(substring(c, opPos + len(foundOp)))
+            var parsed  = self._parseSqlValue(val)
+            var opClean = trim(lower(foundOp))
+            if      (opClean == "=")                        { where[col] = parsed }
+            else if (opClean == ">")                        { where[col] = { "$gt":  parsed } }
+            else if (opClean == ">=")                       { where[col] = { "$gte": parsed } }
+            else if (opClean == "<")                        { where[col] = { "$lt":  parsed } }
+            else if (opClean == "<=")                       { where[col] = { "$lte": parsed } }
+            else if (opClean == "!=" || opClean == "<>")    { where[col] = { "$ne":  parsed } }
+            else if (opClean == "like")                     { where[col] = { "$like": val } }
+            else if (opClean == "in") {
+                var inner = replace(replace(val, "(", ""), ")", "")
+                where[col] = { "$in": self._parseCsvValues(inner) }
+            }
+        }
+        return where
+    }
+
+    func _parseSetStr(s) {
+        var result = {}
+        for (pair in split(s, ",")) {
+            var eqPos = find(pair, "=")
+            if (eqPos < 0) throw "Invalid SET clause: " + pair
+            result[trim(substring(pair, 0, eqPos))] = self._parseSqlValue(trim(substring(pair, eqPos + 1)))
+        }
+        return result
+    }
+
+    // UTILITY
+
+    func dump(tableName) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+        var cols = self._colNames(table)
+        var header = join(cols, " | ")
+        println(header)
+        println(_dbRepeat("-", len(header) + 3))
+        for (row in table["rows"]) {
+            var vals = []
+            for (c in cols) push(vals, str(row[c]))
+            println(join(vals, " | "))
+        }
+        println("(" + str(len(table["rows"])) + " rows)")
+    }
+
+    func toCSV(tableName) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+        var cols = self._colNames(table)
+        var lines = [join(cols, ",")]
+        for (row in table["rows"]) {
+            var vals = []
+            for (c in cols) push(vals, str(row[c]))
+            push(lines, join(vals, ","))
+        }
+        return join(lines, "\n")
+    }
+
+    func importCSV(tableName, csvText) {
+        var lines = split(csvText, "\n")
+        if (len(lines) < 2) return 0
+        var headers = split(lines[0], ",")
+        var i = 0
+        while (i < len(headers)) { headers[i] = trim(headers[i]); i = i + 1 }
+        var count = 0
+        i = 1
+        while (i < len(lines)) {
+            var line = trim(lines[i])
+            if (len(line) > 0) {
+                var vals = split(line, ",")
+                var data = {}
+                var j = 0
+                while (j < len(headers) && j < len(vals)) {
+                    data[headers[j]] = self._parseSqlValue(trim(vals[j]))
+                    j = j + 1
+                }
+                self.insert(tableName, data)
+                count = count + 1
+            }
+            i = i + 1
+        }
+        return count
+    }
+
+    func toJSON(tableName) {
+        var table = self._getTable(tableName)
+        if (table == null) throw "Table '" + tableName + "' not found"
+        return JSON.stringify(table["rows"])
+    }
+
+    func importJSON(tableName, jsonText) {
+        return self.insertMany(tableName, JSON.parse(jsonText))
+    }
+
+    func copyTable(srcName, destName) {
+        var src = self._getTable(srcName)
+        if (src == null) throw "Table '" + srcName + "' not found"
+        self.createTable(destName, src["columns"])
+        return self.insertMany(destName, src["rows"])
+    }
+
+    func truncate(tableName) {
+        return self.deleteAll(tableName)
+    }
+
+    func close() {
+        for (t in keys(self.tables)) self._saveTable(t)
+        self._saveMeta()
+    }
+}
+
+func _dbRepeat(s, n) {
+    var result = ""
+    var i = 0
+    while (i < n) { result = result + s; i = i + 1 }
+    return result
+}
+
+func openDatabase(path) {
+    return new Database(path)
+}
